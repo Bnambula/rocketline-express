@@ -557,10 +557,10 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Dancing+Script:wght@600;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
         :root{
-          --red:#E5261A;--red2:#FF4438;--gold:#F5A623;--dark:#030B18;
-          --card:#0A1628;--border:#162035;--text:#E8EDF5;--muted:#6B7FA3;
-          --green:#1DB954;--mtn:#FFC300;--airtel:#E5261A;
-        }
+  --red:#F26522;--red2:#FF7A35;--gold:#F26522;--dark:#0A0F2E;
+  --card:#0D1540;--border:#1A2660;--text:#E8EDF5;--muted:#7B8FC7;
+  --green:#1DB954;--mtn:#FFC300;--airtel:#F26522;
+}
         .sora{font-family:'Sora',sans-serif}
         .script{font-family:'Dancing Script',cursive}
         .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -1008,7 +1008,7 @@ export default function App() {
                     onClick={() => !booked && !isDriver && setSeat(num)}
                   >
                     {booked ? <span style={{ fontSize: 16 }}>✕</span> : num}
-                    {selected && <div style={{ position: "absolute", top: -4, right: -4, width: 12, height: 12, background: "var(--green)", borderRadius: "50%", border: "2px solid #030B18" }} />}
+                    {selected && <div style={{ position: "absolute", top: -4, right: -4, width: 12, height: 12, background: "var(--green)", borderRadius: "50%", border: "2px solid #0A0F2E" }} />}
                   </div>
                 );
               };
