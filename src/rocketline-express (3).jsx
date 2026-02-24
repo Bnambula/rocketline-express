@@ -877,33 +877,25 @@ export default function App() {
       `}</style>
 
       {/* ── HEADER ── */}
-      <header style={{ background: "#060F20", borderBottom: "1px solid #0F1D32", padding: "0 20px", position: "sticky", top: 0, zIndex: 100 }}>
+      <header style={{ background: "#060F20", borderBottom: "1px solid #0F1D32", padding: "0 16px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 780, margin: "0 auto", height: 64, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div onClick={reset} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 13 }}>
-            <RocketlineLogo size={52} />
-            {/* Wordmark — elegant style matching the reference */}
+          <div onClick={reset} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+            <RocketlineLogo size={44} />
             <div style={{ lineHeight: 1 }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 0 }}>
-                <span style={{
-                  fontFamily: "'Georgia', 'Times New Roman', serif",
-                  fontWeight: 400, fontSize: 17, letterSpacing: "0.5px", color: "#fff"
-                }}>RocketLine <span style={{ fontWeight: 700 }}>Express</span></span>
+              <div style={{ fontFamily: "'Georgia','Times New Roman',serif", fontWeight: 400, fontSize: 15, letterSpacing: "0.5px", color: "#fff" }}>
+                RocketLine <span style={{ fontWeight: 700 }}>Express</span>
               </div>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: "4px", marginTop: 4, fontFamily: "'DM Sans',sans-serif", fontWeight: 400, textTransform: "uppercase" }}>ISHENDAAA</div>
+              <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", letterSpacing: "4px", marginTop: 3, fontFamily: "'DM Sans',sans-serif", textTransform: "uppercase" }}>ISHENDAAA</div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span className="badge badge-gold">20% OFF</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 10px 3px 6px", background: "rgba(107,127,163,0.1)", border: "1px solid #162035", borderRadius: 20 }}>
-              <WaterBottle size={16} />
-              <span style={{ fontSize: 12, color: "#6B7FA3", fontFamily: "'DM Sans',sans-serif" }}>Free Water</span>
-            </div>
-            <button onClick={() => setStep("feedback")} style={{ background:"rgba(245,166,35,0.1)", border:"1px solid rgba(245,166,35,0.3)", borderRadius:8, color:"var(--gold)", fontSize:12, padding:"6px 12px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>⭐ Feedback</button>
-            <button onClick={() => setStep("admin")} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid #1E3A5F", borderRadius: 8, color: "#6B7FA3", fontSize: 12, padding: "6px 12px", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>🔒 Admin</button>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span className="badge badge-gold" style={{ fontSize: 10 }}>20% OFF</span>
+            <button onClick={() => setStep("feedback")} style={{ background:"rgba(245,166,35,0.1)", border:"1px solid rgba(245,166,35,0.3)", borderRadius:8, color:"var(--gold)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>⭐</button>
+            <button onClick={() => { setStep("admin"); setAdminStep("locked"); }} style={{ background:"rgba(229,38,26,0.12)", border:"1px solid rgba(229,38,26,0.35)", borderRadius:8, color:"#FF6B5B", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:700 }}>🔒 Admin</button>
             {agentSession && (
-              <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(74,158,255,0.1)", border:"1px solid rgba(74,158,255,0.3)", borderRadius:8, padding:"4px 10px" }}>
-                <span style={{ fontSize:11, color:"#4A9EFF" }}>👤 {agentSession.name}</span>
-                <button onClick={() => setAgentSession(null)} style={{ background:"transparent", border:"none", color:"var(--muted)", fontSize:11, cursor:"pointer" }}>✕</button>
+              <div style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(74,158,255,0.1)", border:"1px solid rgba(74,158,255,0.3)", borderRadius:8, padding:"4px 8px" }}>
+                <span style={{ fontSize:10, color:"#4A9EFF" }}>👤 {agentSession.name}</span>
+                <button onClick={() => setAgentSession(null)} style={{ background:"transparent", border:"none", color:"var(--muted)", fontSize:11, cursor:"pointer", padding:0 }}>✕</button>
               </div>
             )}
           </div>
@@ -2255,6 +2247,24 @@ export default function App() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* ── STAFF ACCESS PANEL (above footer) ── */}
+      <div style={{ borderTop: "1px solid var(--border)", padding: "20px 16px", background: "#060F20" }}>
+        <div style={{ maxWidth: 780, margin: "0 auto", display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+          <button
+            onClick={() => { setStep("admin"); setAdminStep("locked"); }}
+            style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(229,38,26,0.08)", border:"1px solid rgba(229,38,26,0.3)", borderRadius:10, color:"#FF6B5B", fontSize:13, padding:"12px 22px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:700 }}
+          >
+            🔒 Admin / Staff Login
+          </button>
+          <button
+            onClick={() => setStep("feedback")}
+            style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(245,166,35,0.08)", border:"1px solid rgba(245,166,35,0.3)", borderRadius:10, color:"var(--gold)", fontSize:13, padding:"12px 22px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:700 }}
+          >
+            ⭐ Leave Feedback
+          </button>
+        </div>
       </div>
 
       {/* Footer */}
