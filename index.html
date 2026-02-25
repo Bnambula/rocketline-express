@@ -7,6 +7,32 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/index.jsx"></script>
   </body>
 </html>
+```
+
+5. Click **Commit changes**
+
+---
+
+### Step 3 — Delete the entire `src/` folder
+Since we no longer need `src/main.jsx` or `src/rocketline-express.jsx`, delete them:
+1. Click into `src/` folder
+2. Click `main.jsx` → **⋯ menu → Delete file → Commit**
+3. If `rocketline-express.jsx` is still there → delete it too
+
+---
+
+### Step 4 — Watch Vercel
+It will auto-redeploy. You should get a green ✅ **Ready** in about 20 seconds.
+
+---
+
+Your repo root will look like this when done:
+```
+rocketline-express/
+├── index.html      ← updated (points to index.jsx)
+├── index.jsx       ← NEW (the entire app, self-contained)
+├── package.json    ← unchanged
+└── vite.config.js  ← unchanged
