@@ -2727,7 +2727,6 @@ export default function App() {
             ))}
           </div>
         )}
-      </div>
 
       {/* ── STAFF ACCESS PANEL (above footer) ── */}
       <div style={{ borderTop: "1px solid var(--border)", padding: "20px 16px", background: "#060F20" }}>
