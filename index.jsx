@@ -639,8 +639,8 @@ export default function App() {
 
   // Hero slideshow — cycles through van exterior shots
   const heroSlides = [
-    { img: VAN_PHOTOS.van_front,    label: "Your ride awaits",            sub: "White Toyota HiAce · Comfortable & Clean" },
-    { img: VAN_PHOTOS.van_side,     label: "Spacious & Ready",             sub: "Silver HiAce with roof rack · 14 seats" },
+    { img: VAN_PHOTOS.van_front,    label: "Your ride awaits",            sub: "White Toyota Hiace · Comfortable & Clean" },
+    { img: VAN_PHOTOS.van_side,     label: "Spacious & Ready",             sub: "Silver Hiace with roof rack · 14 seats" },
     { img: VAN_PHOTOS.van_door,     label: "Board with ease",              sub: "Wide sliding door · Easy luggage access" },
     { img: VAN_PHOTOS.seats_inside, label: "Travel in comfort",            sub: "Premium black leather seats · Air-conditioned" },
     { img: VAN_PHOTOS.dashboard,    label: "Right-hand drive, right-hand service", sub: "Professional drivers · Safe journeys" },
@@ -1134,231 +1134,234 @@ export default function App() {
 
   // ─── RENDER ───────────────────────────────────
   return (
-    <div style={{ minHeight: "100vh", background: "#030B18", color: "#E8EDF5", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#f4f6fa", color: "#1a2540", fontFamily: "'Nunito Sans', 'Segoe UI', sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Dancing+Script:wght@600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700;800;900&family=Nunito:wght@700;800;900&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
         :root{
-          --red:#E5261A;--red2:#FF4438;--gold:#F5A623;--dark:#030B18;
-          --card:#0A1628;--border:#162035;--text:#E8EDF5;--muted:#6B7FA3;
+          --red:#E5261A;--red2:#FF4438;--gold:#F5A623;--navy:#1a2540;--navy2:#0f1a35;
+          --blue:#2356a8;--blue2:#1a4a9e;--light:#f4f6fa;--white:#ffffff;
+          --card:#ffffff;--border:#dde3ef;--text:#1a2540;--muted:#6b7a9a;
           --green:#1DB954;--mtn:#FFC300;--airtel:#E5261A;
         }
-        .sora{font-family:'Sora',sans-serif}
-        .script{font-family:'Dancing Script',cursive}
+        body{font-family:'Nunito Sans','Segoe UI',sans-serif}
+        .nunito{font-family:'Nunito',sans-serif}
+        .sora{font-family:'Nunito',sans-serif;font-weight:800}
+        .script{font-family:'Nunito',sans-serif;font-weight:700;font-style:italic}
         .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
-          border:none;cursor:pointer;border-radius:8px;font-family:'DM Sans',sans-serif;
-          font-weight:600;font-size:15px;transition:all .18s;padding:14px 28px;letter-spacing:.2px}
+          border:none;cursor:pointer;border-radius:6px;font-family:'Nunito Sans',sans-serif;
+          font-weight:700;font-size:15px;transition:all .18s;padding:13px 28px;letter-spacing:.3px}
         .btn-red{background:var(--red);color:#fff}
-        .btn-red:hover{background:var(--red2);transform:translateY(-1px);box-shadow:0 8px 28px rgba(229,38,26,.35)}
-        .btn-outline{background:transparent;color:var(--red);border:1.5px solid var(--red)}
-        .btn-outline:hover{background:rgba(229,38,26,.08)}
-        .btn-ghost{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)}
-        .btn-ghost:hover{background:rgba(255,255,255,.08);color:var(--text)}
-        .btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
-        .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
-        .route-card{background:var(--card);border:1.5px solid var(--border);border-radius:12px;
-          padding:18px 20px;cursor:pointer;transition:all .18s}
-        .route-card:hover{border-color:var(--red);transform:translateY(-1px)}
-        .route-card.sel{border-color:var(--red);background:#120810}
-        .input{background:#071022;border:1.5px solid var(--border);color:var(--text);
-          padding:13px 16px;border-radius:8px;width:100%;font-family:'DM Sans',sans-serif;
+        .btn-red:hover{background:var(--red2);transform:translateY(-1px);box-shadow:0 6px 20px rgba(229,38,26,.3)}
+        .btn-navy{background:var(--navy);color:#fff}
+        .btn-navy:hover{background:var(--navy2)}
+        .btn-blue{background:var(--blue);color:#fff}
+        .btn-blue:hover{background:var(--blue2)}
+        .btn-outline{background:transparent;color:var(--navy);border:2px solid var(--navy)}
+        .btn-outline:hover{background:var(--navy);color:#fff}
+        .btn-ghost{background:rgba(26,37,64,.06);color:var(--muted);border:1px solid var(--border)}
+        .btn-ghost:hover{background:rgba(26,37,64,.1);color:var(--text)}
+        .btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;box-shadow:0 2px 12px rgba(26,37,64,.06)}
+        .route-card{background:var(--card);border:2px solid var(--border);border-radius:10px;
+          padding:18px 20px;cursor:pointer;transition:all .18s;box-shadow:0 2px 8px rgba(26,37,64,.05)}
+        .route-card:hover{border-color:var(--blue);transform:translateY(-2px);box-shadow:0 6px 20px rgba(35,86,168,.12)}
+        .route-card.sel{border-color:var(--blue);background:#f0f4ff}
+        .input{background:#fff;border:2px solid var(--border);color:var(--text);
+          padding:13px 16px;border-radius:8px;width:100%;font-family:'Nunito Sans',sans-serif;
           font-size:14px;outline:none;transition:border .18s}
-        .input:focus{border-color:var(--red)}
+        .input:focus{border-color:var(--blue)}
         .input::placeholder{color:var(--muted)}
         .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
-          border-radius:20px;font-size:12px;font-weight:600;letter-spacing:.3px}
-        .badge-red{background:rgba(229,38,26,.15);color:var(--red2)}
-        .badge-gold{background:rgba(245,166,35,.15);color:var(--gold)}
-        .badge-green{background:rgba(29,185,84,.12);color:var(--green)}
-        .badge-muted{background:rgba(107,127,163,.1);color:var(--muted)}
+          border-radius:20px;font-size:12px;font-weight:700;letter-spacing:.3px}
+        .badge-red{background:rgba(229,38,26,.1);color:var(--red)}
+        .badge-gold{background:rgba(245,166,35,.15);color:#c47d00}
+        .badge-green{background:rgba(29,185,84,.12);color:#0e8c3a}
+        .badge-blue{background:rgba(35,86,168,.1);color:var(--blue)}
+        .badge-muted{background:rgba(107,122,154,.1);color:var(--muted)}
         .seat-btn{width:46px;height:46px;border-radius:8px;border:2px solid;
           cursor:pointer;display:flex;align-items:center;justify-content:center;
-          font-size:13px;font-weight:600;transition:all .15s;user-select:none}
-        .seat-avail{background:#051520;border-color:#1A4A30;color:#3CB871}
-        .seat-avail:hover{background:#1A4A30;color:#fff;transform:scale(1.06)}
-        .seat-booked{background:#1A0808;border-color:#4A1A1A;color:#C44;cursor:not-allowed}
-        .seat-sel{background:var(--red);border-color:var(--red2);color:#fff;box-shadow:0 0 18px rgba(229,38,26,.4)}
-        .seat-driver{background:#0A1628;border-color:#162035;color:var(--muted);cursor:default;font-size:10px}
-        .pay-option{background:#071022;border:2px solid var(--border);border-radius:10px;
+          font-size:13px;font-weight:700;transition:all .15s;user-select:none}
+        .seat-avail{background:#f0fff4;border-color:#a3d9b0;color:#0e8c3a}
+        .seat-avail:hover{background:#0e8c3a;color:#fff;border-color:#0e8c3a;transform:scale(1.06)}
+        .seat-booked{background:#fff0f0;border-color:#f4b8b8;color:#c44;cursor:not-allowed}
+        .seat-sel{background:var(--blue);border-color:var(--blue2);color:#fff;box-shadow:0 0 16px rgba(35,86,168,.4)}
+        .seat-driver{background:#f0f2f8;border-color:#dde3ef;color:var(--muted);cursor:default;font-size:10px}
+        .pay-option{background:#fff;border:2px solid var(--border);border-radius:10px;
           padding:16px;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:14px}
-        .pay-option:hover{border-color:#3a4a6a}
-        .pay-option.sel-mtn{border-color:var(--mtn);background:#0d1000}
-        .pay-option.sel-airtel{border-color:var(--airtel);background:#120500}
-        .divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:28px 0}
+        .pay-option:hover{border-color:var(--blue)}
+        .pay-option.sel-mtn{border-color:var(--mtn);background:#fffdf0}
+        .pay-option.sel-airtel{border-color:var(--airtel);background:#fff5f5}
+        .divider{height:1px;background:var(--border);margin:28px 0}
         .step-dot{width:8px;height:8px;border-radius:50%;background:var(--border)}
-        .step-dot.active{background:var(--red)}
+        .step-dot.active{background:var(--blue)}
         .step-dot.done{background:var(--green)}
         .tag{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;
-          border-radius:20px;border:1px solid var(--border);font-size:12.5px;color:var(--muted)}
+          border-radius:20px;border:1px solid var(--border);font-size:12.5px;color:var(--muted);background:#fff}
         .pulse{animation:pulse 1.5s ease-in-out infinite}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
         .spin{animation:spin 1s linear infinite}
         @keyframes spin{to{transform:rotate(360deg)}}
         .fade-in{animation:fadeIn .35s ease}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-        scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+        .nav-link{color:rgba(255,255,255,.85);font-size:14px;font-weight:600;text-decoration:none;
+          padding:6px 14px;border-radius:4px;transition:all .15s}
+        .nav-link:hover{color:#fff;background:rgba(255,255,255,.12)}
+        .courier-card{background:#fff;border:2px solid var(--border);border-radius:10px;
+          padding:20px;cursor:pointer;transition:all .18s;box-shadow:0 2px 8px rgba(26,37,64,.05)}
+        .courier-card:hover{border-color:var(--gold);box-shadow:0 6px 20px rgba(245,166,35,.15);transform:translateY(-2px)}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
       `}</style>
 
-      {/* ── HEADER ── */}
-      <header style={{ background: "#060F20", borderBottom: "1px solid #0F1D32", padding: "0 16px", position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ maxWidth: 780, margin: "0 auto", height: 64, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div onClick={reset} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-            <img src={LOGO_MAIN} alt="Rocketline Express" style={{ height: 48, width: "auto", objectFit: "contain" }} />
-          </div>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span className="badge badge-gold" style={{ fontSize: 10 }}>20% OFF</span>
-            <button onClick={() => setStep("feedback")} style={{ background:"rgba(245,166,35,0.1)", border:"1px solid rgba(245,166,35,0.3)", borderRadius:8, color:"var(--gold)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>⭐</button>
-            <button onClick={() => { setStep("admin"); setAdminStep("locked"); }} style={{ background:"rgba(229,38,26,0.12)", border:"1px solid rgba(229,38,26,0.35)", borderRadius:8, color:"#FF6B5B", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:700 }}>🔒 Admin</button>
-            {agentSession && (
-              <div style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(74,158,255,0.1)", border:"1px solid rgba(74,158,255,0.3)", borderRadius:8, padding:"4px 8px" }}>
-                <span style={{ fontSize:10, color:"#4A9EFF" }}>👤 {agentSession.name}</span>
-                <button onClick={() => setAgentSession(null)} style={{ background:"transparent", border:"none", color:"var(--muted)", fontSize:11, cursor:"pointer", padding:0 }}>✕</button>
+      {/* ── HEADER — Two-tier Megabus style ── */}
+      <header style={{ position: "sticky", top: 0, zIndex: 100 }}>
+        {/* Top bar — logo + social + auth */}
+        <div style={{ background: "#1a2540", padding: "0 20px" }}>
+          <div style={{ maxWidth: 1100, margin: "0 auto", height: 60, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div onClick={reset} style={{ cursor: "pointer" }}>
+              <img src={LOGO_MAIN} alt="Rocketline Express" style={{ height: 44, width: "auto", objectFit: "contain" }} />
+            </div>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              {/* Social icons */}
+              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                <a href="https://wa.me/256701196725" target="_blank" rel="noreferrer" style={{ color: "rgba(255,255,255,.7)", textDecoration: "none", fontSize: 18 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                </a>
+                <a href="tel:+256701196725" style={{ color: "rgba(255,255,255,.7)", textDecoration: "none", fontSize: 13, fontWeight: 600, fontFamily: "'Nunito Sans', sans-serif" }}>📞 +256 701 196 725</a>
               </div>
-            )}
+              {/* Auth buttons */}
+              {agentSession ? (
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ color:"#a8c8ff", fontSize:13, fontFamily:"'Nunito Sans',sans-serif", fontWeight:600 }}>👤 {agentSession.name}</span>
+                  <button onClick={() => setAgentSession(null)} style={{ background:"rgba(255,255,255,.1)", border:"1px solid rgba(255,255,255,.2)", borderRadius:5, color:"rgba(255,255,255,.7)", fontSize:12, padding:"5px 10px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif" }}>Sign out</button>
+                </div>
+              ) : (
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={() => { setStep("admin"); setAdminStep("locked"); }} style={{ background:"transparent", border:"1.5px solid rgba(255,255,255,.3)", borderRadius:5, color:"rgba(255,255,255,.85)", fontSize:13, padding:"7px 16px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif", fontWeight:600 }}>🔒 Staff Login</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Nav bar — links + Buy tickets */}
+        <div style={{ background: "#233a6e", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+          <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <nav style={{ display: "flex", alignItems: "center" }}>
+              {[
+                { label: "Book a Seat", action: () => setStep("select-route") },
+                { label: "Courier Service", action: () => setStep("courier") },
+                { label: "Our Routes", action: () => setStep("select-route") },
+                { label: "Track My Van", action: () => setStep("admin") },
+                { label: "Help", action: () => setStep("feedback") },
+                { label: "⭐ Feedback", action: () => setStep("feedback") },
+              ].map(item => (
+                <button key={item.label} onClick={item.action} style={{
+                  background: "transparent", border: "none", color: "rgba(255,255,255,.85)",
+                  fontSize: 14, fontWeight: 600, padding: "16px 18px", cursor: "pointer",
+                  fontFamily: "'Nunito Sans', sans-serif", borderBottom: "3px solid transparent",
+                  transition: "all .15s", whiteSpace: "nowrap"
+                }}
+                  onMouseEnter={e => { e.target.style.color="#fff"; e.target.style.borderBottom="3px solid #F5A623"; }}
+                  onMouseLeave={e => { e.target.style.color="rgba(255,255,255,.85)"; e.target.style.borderBottom="3px solid transparent"; }}
+                >{item.label}</button>
+              ))}
+            </nav>
+            <button className="btn btn-red" style={{ margin: "8px 0 8px 0", padding: "10px 22px", fontSize: 14, borderRadius: 5, flexShrink: 0 }}
+              onClick={() => setStep("select-route")}>
+              🎫 Buy Tickets
+            </button>
           </div>
         </div>
       </header>
 
-      <div style={{ maxWidth: 780, margin: "0 auto", padding: "24px 16px 60px" }} className="fade-in">
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 16px 60px" }} className="fade-in">
 
         {/* ── HOME ── */}
         {step === "home" && (
           <div>
-            {/* ── HERO SLIDESHOW ── */}
-            <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", marginBottom: 28, boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }}>
-              {/* Slide images */}
-              {heroSlides.map((slide, i) => (
-                <div key={i} style={{
-                  position: i === 0 ? "relative" : "absolute",
-                  inset: 0,
-                  opacity: heroSlide === i ? 1 : 0,
-                  transition: "opacity 1.2s ease",
-                  zIndex: heroSlide === i ? 1 : 0,
-                  height: i === 0 ? undefined : "100%",
-                  width: "100%",
-                }}>
-                  <img
-                    src={slide.img}
-                    alt={slide.label}
-                    style={{
-                      width: "100%",
-                      height: 340,
-                      objectFit: "cover",
-                      objectPosition: i === 3 ? "center 30%" : "center center",
-                      display: "block",
-                    }}
-                  />
-                  {/* Dark gradient overlay so text is always readable */}
-                  <div style={{
-                    position: "absolute", inset: 0,
-                    background: "linear-gradient(180deg, rgba(3,11,24,0.25) 0%, rgba(3,11,24,0.55) 55%, rgba(3,11,24,0.92) 100%)"
-                  }}/>
-                  {/* Slide caption */}
-                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "20px 24px", zIndex: 2 }}>
-                    <div className="script" style={{ fontSize: 26, color: "#fff", fontWeight: 700, lineHeight: 1.2, textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}>
-                      {slide.label}
+            {/* ── MEGABUS-STYLE HERO — photo bg + search bar ── */}
+            <div style={{ position: "relative", minHeight: 380, overflow: "hidden", borderRadius: 0, marginLeft: -16, marginRight: -16, marginTop: -24 }}>
+              {/* Background photo */}
+              <img src={VAN_PHOTOS.seats_inside} alt="Travel" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 30%" }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(26,37,64,.82) 0%, rgba(35,58,110,.65) 100%)" }} />
+
+              {/* Hero content */}
+              <div style={{ position: "relative", zIndex: 2, padding: "48px 20px 40px", maxWidth: 1100, margin: "0 auto" }}>
+                <div style={{ marginBottom: 10 }}>
+                  <span className="badge badge-gold" style={{ marginBottom: 12, display: "inline-flex" }}>🎉 20% OFF — Limited Time</span>
+                </div>
+                <h1 style={{ fontFamily: "'Nunito', sans-serif", fontSize: 42, fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: 8, textShadow: "0 2px 12px rgba(0,0,0,.3)" }}>
+                  Travel Smarter<br /><span style={{ color: "#F5A623" }}>Across Uganda</span>
+                </h1>
+                <p style={{ color: "rgba(255,255,255,.8)", fontSize: 16, marginBottom: 28, fontWeight: 400, maxWidth: 480 }}>
+                  Real-time seat booking · 14-seater Hiace vans · Pay with MTN MoMo or Airtel Money
+                </p>
+
+                {/* ── SEARCH BAR ── */}
+                <div style={{ background: "#fff", borderRadius: 8, display: "flex", flexWrap: "wrap", boxShadow: "0 8px 32px rgba(0,0,0,.25)", overflow: "hidden", maxWidth: 860 }}>
+                  {/* Trip type */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 20px", borderBottom: "2px solid #f0f4ff", width: "100%" }}>
+                    {["Single", "Return"].map(t => (
+                      <label key={t} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 14, fontWeight: 600, color: "var(--navy)", fontFamily: "'Nunito Sans', sans-serif" }}>
+                        <input type="radio" name="triptype" defaultChecked={t==="Single"} style={{ accentColor: "var(--blue)" }} /> {t}
+                      </label>
+                    ))}
+                  </div>
+                  {/* Fields row */}
+                  <div style={{ display: "flex", flex: 1, flexWrap: "wrap", alignItems: "stretch" }}>
+                    <div style={{ flex: "1 1 180px", display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderRight: "1px solid var(--border)" }}>
+                      <span style={{ fontSize: 18 }}>📍</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 2 }}>From</div>
+                        <select style={{ border: "none", outline: "none", fontSize: 15, fontFamily: "'Nunito Sans',sans-serif", color: "var(--text)", fontWeight: 600, background: "transparent", width: "100%", cursor: "pointer" }} onChange={e => { const r = ROUTES.find(r2 => r2.from === e.target.value); if(r) setRoute(r); }}>
+                          <option value="">Select city</option>
+                          {[...new Set(ROUTES.map(r=>r.from))].map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 4, fontFamily: "'DM Sans',sans-serif", textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}>
-                      {slide.sub}
+                    <div style={{ display: "flex", alignItems: "center", padding: "0 10px", borderRight: "1px solid var(--border)" }}>
+                      <button onClick={() => setStep("select-route")} style={{ background: "var(--blue)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", color: "#fff", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>⇄</button>
+                    </div>
+                    <div style={{ flex: "1 1 180px", display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderRight: "1px solid var(--border)" }}>
+                      <span style={{ fontSize: 18 }}>🗺️</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 2 }}>To</div>
+                        <select style={{ border: "none", outline: "none", fontSize: 15, fontFamily: "'Nunito Sans',sans-serif", color: "var(--text)", fontWeight: 600, background: "transparent", width: "100%", cursor: "pointer" }}>
+                          <option value="">Select city</option>
+                          {[...new Set(ROUTES.map(r=>r.to))].map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ flex: "1 1 150px", display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderRight: "1px solid var(--border)" }}>
+                      <span style={{ fontSize: 18 }}>📅</span>
+                      <div>
+                        <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 2 }}>Date</div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", fontFamily: "'Nunito Sans',sans-serif" }}>Today</div>
+                      </div>
+                    </div>
+                    <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", padding: "10px 12px" }}>
+                      <button className="btn btn-navy" style={{ padding: "12px 28px", fontSize: 15, borderRadius: 6, whiteSpace: "nowrap" }} onClick={() => setStep("select-route")}>
+                        Search →
+                      </button>
                     </div>
                   </div>
                 </div>
-              ))}
 
-              {/* Slide dot indicators */}
-              <div style={{ position: "absolute", bottom: 14, right: 20, display: "flex", gap: 6, zIndex: 10 }}>
-                {heroSlides.map((_, i) => (
-                  <button key={i} onClick={() => { setHeroSlide(i); clearInterval(slideRef.current); }}
-                    style={{
-                      width: heroSlide === i ? 22 : 7, height: 7,
-                      borderRadius: 4, border: "none", cursor: "pointer",
-                      background: heroSlide === i ? "var(--red)" : "rgba(255,255,255,0.4)",
-                      transition: "all .3s", padding: 0
-                    }}
-                  />
-                ))}
-              </div>
-
-              {/* Logo overlay top-left */}
-              <div style={{ position: "absolute", top: 12, left: 12, zIndex: 10, background: "rgba(0,0,0,0.35)", borderRadius: 10, padding: "4px 8px", backdropFilter: "blur(4px)" }}>
-                <img src={LOGO_MAIN} alt="Rocketline Express" style={{ height: 36, width: "auto", objectFit: "contain" }} />
-              </div>
-
-              {/* Book now button floating top-right */}
-              <button className="btn btn-red" onClick={() => setStep("select-route")}
-                style={{ position: "absolute", top: 16, right: 16, zIndex: 10, padding: "10px 18px", fontSize: 13, borderRadius: 8 }}>
-                Book Now →
-              </button>
-            </div>
-
-            {/* ── MAIN HERO TEXT (below slideshow) ── */}
-            <div style={{ textAlign: "center", padding: "10px 0 24px", position: "relative" }}>
-              <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(229,38,26,.06) 0%, transparent 70%)", pointerEvents: "none" }} />
-              <div className="sora" style={{ fontSize: 11, letterSpacing: "3px", color: "var(--red)", marginBottom: 10, textTransform: "uppercase" }}>Premier Travel, Linking Cities</div>
-
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 14, gap: 6 }}>
-                <img src={LOGO_MAIN} alt="Rocketline Express" style={{ height: 90, width: "auto", objectFit: "contain" }} />
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: "6px", fontFamily: "'DM Sans',sans-serif", fontWeight: 300, textTransform: "uppercase" }}>ISHENDAAA</div>
-              </div>
-
-              <h1 className="sora" style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.15, marginBottom: 6 }}>
-                Your Seat.<br />
-                <span style={{ color: "var(--red)" }}>Your Journey.</span><br />
-                Booked in Seconds.
-              </h1>
-              <div style={{ color: "#F5A623", fontSize: 12, fontFamily: "'DM Sans',sans-serif", fontWeight: 700, marginBottom: 16, letterSpacing: "5px", textTransform: "uppercase" }}>ISHENDAAA</div>
-              <p style={{ color: "var(--muted)", fontSize: 14, maxWidth: 440, margin: "0 auto 22px" }}>
-                Real-time seat booking on actively loading 14-seater matatu vans. Pay with MTN MoMo or Airtel Money. Get confirmation on WhatsApp.
-              </p>
-
-              {/* CTA buttons */}
-              <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 20 }}>
-                <button className="btn btn-red" style={{ fontSize: 16, padding: "15px 32px", borderRadius: 10 }} onClick={() => setStep("select-route")}>
-                  🚐 Book Your Seat Today
-                </button>
-                <a href="tel:+256701196725" style={{
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                  background: "rgba(255,255,255,0.05)", color: "#E8EDF5",
-                  border: "1.5px solid #1E3A5F", borderRadius: 10,
-                  padding: "15px 22px", fontSize: 14, fontWeight: 600,
-                  textDecoration: "none", fontFamily: "'DM Sans',sans-serif"
-                }}>
-                  📞 Talk to Customer Care
-                </a>
-              </div>
-
-              {/* WhatsApp */}
-              <div style={{ marginBottom: 10 }}>
-                <a href="https://wa.me/256701196725" target="_blank" rel="noreferrer" style={{
-                  display: "inline-flex", alignItems: "center", gap: 7,
-                  background: "rgba(37,211,102,0.1)", color: "#25D366",
-                  border: "1px solid rgba(37,211,102,0.25)", borderRadius: 20,
-                  padding: "7px 18px", fontSize: 13, fontWeight: 600,
-                  textDecoration: "none", fontFamily: "'DM Sans',sans-serif"
-                }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  Chat on WhatsApp · +256 701 196 725
-                </a>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-                {["✅ No double booking", "💳 MTN & Airtel Money", "💬 WhatsApp confirmation"].map(t => (
-                  <span key={t} className="tag">{t}</span>
-                ))}
-                <span className="tag" style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                  <WaterBottle size={14} /> Free water bottle
-                </span>
+                {/* Trust badges */}
+                <div style={{ display: "flex", gap: 16, marginTop: 18, flexWrap: "wrap" }}>
+                  {["✅ No double booking", "💳 MTN & Airtel Money", "💬 WhatsApp confirmation", "🍶 Free water bottle"].map(t => (
+                    <span key={t} style={{ background: "rgba(255,255,255,.15)", color: "#fff", borderRadius: 20, padding: "5px 14px", fontSize: 12, fontWeight: 600, fontFamily: "'Nunito Sans',sans-serif", backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,.2)" }}>{t}</span>
+                  ))}
+                </div>
               </div>
             </div>
-
             {/* ── COMFORT GALLERY — 2×2 photo grid with captions ── */}
             <div className="divider" />
-            <div className="script" style={{ fontSize: 26, color: "#F5A623", textAlign: "center", marginBottom: 6 }}>
+            <div style={{ fontFamily:"'Nunito',sans-serif", fontSize: 26, fontWeight: 800, color: "var(--navy)", textAlign: "center", marginBottom: 6 }}>
               See what's waiting for you
             </div>
-            <div style={{ fontSize: 13, color: "var(--muted)", textAlign: "center", marginBottom: 18, fontFamily: "'DM Sans',sans-serif" }}>
+            <div style={{ fontSize: 13, color: "var(--muted)", textAlign: "center", marginBottom: 18, fontFamily: "'Nunito Sans',sans-serif" }}>
               Every seat booked through Rocketline Express is in one of these vans
             </div>
 
@@ -1369,21 +1372,21 @@ export default function App() {
                 <img src={VAN_PHOTOS.seats_inside} alt="Premium leather seats" style={{ width: "100%", height: 220, objectFit: "cover", objectPosition: "center 30%", display: "block" }}/>
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 40%, rgba(3,11,24,0.88) 100%)" }}/>
                 <div style={{ position: "absolute", bottom: 14, left: 16 }}>
-                  <div className="script" style={{ fontSize: 20, color: "#fff", fontWeight: 700 }}>Premium Leather Seats</div>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontFamily: "'DM Sans',sans-serif" }}>Quilted headliner · Individual headrests · Your own space</div>
+                  <div style={{ fontFamily:"'Nunito',sans-serif", fontSize: 20, fontWeight: 800, color: "#fff" }}>Premium Leather Seats</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontFamily: "'Nunito Sans',sans-serif" }}>Quilted headliner · Individual headrests · Your own space</div>
                 </div>
-                <div style={{ position: "absolute", top: 12, right: 12, background: "var(--red)", borderRadius: 20, padding: "4px 12px", fontSize: 11, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", color: "#fff" }}>
+                <div style={{ position: "absolute", top: 12, right: 12, background: "var(--red)", borderRadius: 20, padding: "4px 12px", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito Sans',sans-serif", color: "#fff" }}>
                   YOUR SEAT →
                 </div>
               </div>
 
               {/* White van front */}
               <div style={{ borderRadius: 12, overflow: "hidden", position: "relative", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
-                <img src={VAN_PHOTOS.van_front} alt="Toyota HiAce" style={{ width: "100%", height: 160, objectFit: "cover", objectPosition: "center", display: "block" }}/>
+                <img src={VAN_PHOTOS.van_front} alt="Toyota Hiace" style={{ width: "100%", height: 160, objectFit: "cover", objectPosition: "center", display: "block" }}/>
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 35%, rgba(3,11,24,0.9) 100%)" }}/>
                 <div style={{ position: "absolute", bottom: 10, left: 12 }}>
-                  <div className="script" style={{ fontSize: 15, color: "#fff", fontWeight: 700 }}>Clean & Comfortable</div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", fontFamily: "'DM Sans',sans-serif" }}>Toyota HiAce · Uganda plates</div>
+                  <div style={{ fontFamily:"'Nunito',sans-serif", fontSize: 15, fontWeight: 800, color: "#fff" }}>Clean & Comfortable</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", fontFamily: "'Nunito Sans',sans-serif" }}>Toyota Hiace · Uganda plates</div>
                 </div>
               </div>
 
@@ -1392,8 +1395,8 @@ export default function App() {
                 <img src={VAN_PHOTOS.van_door} alt="Board with ease" style={{ width: "100%", height: 160, objectFit: "cover", objectPosition: "left center", display: "block" }}/>
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 35%, rgba(3,11,24,0.9) 100%)" }}/>
                 <div style={{ position: "absolute", bottom: 10, left: 12 }}>
-                  <div className="script" style={{ fontSize: 15, color: "#fff", fontWeight: 700 }}>Easy Boarding</div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", fontFamily: "'DM Sans',sans-serif" }}>Wide sliding door · Step-in access</div>
+                  <div style={{ fontFamily:"'Nunito',sans-serif", fontSize: 15, fontWeight: 800, color: "#fff" }}>Easy Boarding</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", fontFamily: "'Nunito Sans',sans-serif" }}>Wide sliding door · Step-in access</div>
                 </div>
               </div>
 
@@ -1403,8 +1406,8 @@ export default function App() {
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 30%, rgba(3,11,24,0.88) 100%)" }}/>
                 <div style={{ position: "absolute", bottom: 14, left: 16, right: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                   <div>
-                    <div className="script" style={{ fontSize: 18, color: "#fff", fontWeight: 700 }}>Professional Drivers</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontFamily: "'DM Sans',sans-serif" }}>Right-hand drive · Air conditioned · Safe journeys</div>
+                    <div style={{ fontFamily:"'Nunito',sans-serif", fontSize: 18, fontWeight: 800, color: "#fff" }}>Professional Drivers</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontFamily: "'Nunito Sans',sans-serif" }}>Right-hand drive · Air conditioned · Safe journeys</div>
                   </div>
                   <button className="btn btn-red" onClick={() => setStep("select-route")} style={{ fontSize: 12, padding: "8px 16px", flexShrink: 0 }}>
                     Book a Seat
@@ -1418,8 +1421,8 @@ export default function App() {
             {/* Route cards preview */}
             {/* Line 1 — script: section invitation */}
             <div style={{ marginBottom: 4 }}>
-              <span className="script" style={{
-                fontSize: 28, color: "#F5A623", fontWeight: 700,
+              <span style={{ fontFamily:"'Nunito',sans-serif",
+                fontSize: 28, color: "var(--navy)", fontWeight: 900,
                 display: "block", textAlign: "center", lineHeight: 1.2
               }}>
                 Where are you headed today?
@@ -1428,8 +1431,8 @@ export default function App() {
 
             {/* Line 2 — script: sub-invitation */}
             <div style={{ marginBottom: 4, textAlign: "center" }}>
-              <span className="script" style={{
-                fontSize: 19, color: "rgba(255,255,255,0.5)", fontWeight: 600
+              <span style={{ fontFamily:"'Nunito Sans',sans-serif",
+                fontSize: 16, color: "var(--muted)", fontWeight: 600
               }}>
                 Choose a route and we'll take care of the rest
               </span>
@@ -1437,9 +1440,8 @@ export default function App() {
 
             {/* Line 3 — script: comfort promise */}
             <div style={{ marginBottom: 22, textAlign: "center" }}>
-              <span className="script" style={{
-                fontSize: 16, color: "var(--red)", fontWeight: 600,
-                fontStyle: "italic"
+              <span style={{ fontFamily:"'Nunito Sans',sans-serif",
+                fontSize: 14, color: "var(--red)", fontWeight: 700
               }}>
                 Comfortable seats, on time, every time — Ishendaaa!
               </span>
@@ -1456,7 +1458,7 @@ export default function App() {
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <span style={{ fontSize: 22 }}>{r.icon}</span>
                     <div>
-                      <div className="sora" style={{ fontWeight: 600, fontSize: 15 }}>{r.pair}</div>
+                      <div className="nunito" style={{ fontWeight: 600, fontSize: 15 }}>{r.pair}</div>
                       <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{r.desc}</div>
                     </div>
                   </div>
@@ -1466,6 +1468,174 @@ export default function App() {
                   </div>
                 </div>
               ))}
+            {/* ── COURIER SERVICE SECTION on home ── */}
+            <div className="divider" />
+            <div style={{ background: "linear-gradient(135deg, #1a2540 0%, #233a6e 100%)", borderRadius: 12, padding: "28px 24px", marginBottom: 24, color: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <span style={{ fontSize: 28 }}>📦</span>
+                    <span style={{ fontFamily: "'Nunito',sans-serif", fontSize: 22, fontWeight: 900, color: "#F5A623" }}>Courier Service</span>
+                  </div>
+                  <p style={{ color: "rgba(255,255,255,.8)", fontSize: 14, maxWidth: 440, lineHeight: 1.6 }}>
+                    Send parcels and packages between cities on our vans. Same-day delivery on morning departures. Tracked, insured, and confirmed via WhatsApp.
+                  </p>
+                  <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                    {["📍 Door-to-terminal delivery", "⚡ Same-day available", "🔒 Insured parcels", "📲 WhatsApp tracking"].map(t => (
+                      <span key={t} style={{ background: "rgba(255,255,255,.12)", color: "rgba(255,255,255,.9)", borderRadius: 20, padding: "4px 12px", fontSize: 12, fontWeight: 600, fontFamily: "'Nunito Sans',sans-serif" }}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+                <button className="btn" style={{ background: "#F5A623", color: "#1a2540", padding: "13px 28px", fontSize: 15, borderRadius: 6, whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => setStep("courier")}>
+                  Send a Parcel →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── COURIER BOOKING ── */}
+        {step === "courier" && (
+          <div className="fade-in">
+            <button className="btn btn-ghost" style={{ marginBottom: 24, fontSize: 13, padding: "8px 16px" }} onClick={reset}>← Home</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+              <span style={{ fontSize: 32 }}>📦</span>
+              <div>
+                <h2 className="nunito" style={{ fontSize: 28, fontWeight: 900, color: "var(--navy)" }}>Courier Service</h2>
+                <p style={{ color: "var(--muted)", fontSize: 14 }}>Send parcels between cities on our vans · Same-day available</p>
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            {/* Courier form */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              {/* Left: Parcel details */}
+              <div className="card" style={{ gridColumn: "1 / -1" }}>
+                <div style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 16, color: "var(--navy)", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>📋</span> Parcel Details
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>From City</label>
+                    <select className="input">
+                      {[...new Set(ROUTES.map(r=>r.from))].map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>To City</label>
+                    <select className="input">
+                      {[...new Set(ROUTES.map(r=>r.to))].map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Parcel Description</label>
+                    <input className="input" placeholder="e.g. Documents, Electronics, Clothes" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Weight (kg)</label>
+                    <select className="input">
+                      <option>Under 1 kg — UGX 5,000</option>
+                      <option>1–3 kg — UGX 10,000</option>
+                      <option>3–5 kg — UGX 18,000</option>
+                      <option>5–10 kg — UGX 30,000</option>
+                      <option>10–20 kg — UGX 50,000</option>
+                      <option>Over 20 kg — Contact us</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Declared Value (UGX)</label>
+                    <input className="input" placeholder="e.g. 50000 — for insurance" type="number" min="0" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Preferred Departure</label>
+                    <select className="input">
+                      <option>Next available van</option>
+                      <option>Morning (before 10am)</option>
+                      <option>Afternoon (10am–2pm)</option>
+                      <option>Evening (after 2pm)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sender */}
+              <div className="card">
+                <div style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 15, color: "var(--navy)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>👤</span> Sender
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Full Name</label>
+                    <input className="input" placeholder="Sender name" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Phone Number</label>
+                    <input className="input" placeholder="07XX XXX XXX" type="tel" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Boarding Point</label>
+                    <input className="input" placeholder="Where to drop off parcel" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Recipient */}
+              <div className="card">
+                <div style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 15, color: "var(--navy)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>📬</span> Recipient
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Full Name</label>
+                    <input className="input" placeholder="Recipient name" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Phone Number</label>
+                    <input className="input" placeholder="07XX XXX XXX" type="tel" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 6 }}>Collection Point</label>
+                    <input className="input" placeholder="Where recipient will collect" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Pricing guide */}
+              <div className="card" style={{ gridColumn: "1 / -1", background: "#f8f9fc", border: "1px solid var(--border)" }}>
+                <div style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 15, color: "var(--navy)", marginBottom: 14 }}>💰 Courier Rates</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+                  {[
+                    { size: "Under 1 kg", price: "UGX 5,000", icon: "✉️" },
+                    { size: "1–3 kg", price: "UGX 10,000", icon: "📦" },
+                    { size: "3–5 kg", price: "UGX 18,000", icon: "🗃️" },
+                    { size: "5–10 kg", price: "UGX 30,000", icon: "📫" },
+                    { size: "10–20 kg", price: "UGX 50,000", icon: "🏗️" },
+                    { size: "20 kg+", price: "Call us", icon: "📞" },
+                  ].map(r => (
+                    <div key={r.size} style={{ background: "#fff", borderRadius: 8, padding: "12px 14px", border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 20 }}>{r.icon}</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)", fontFamily: "'Nunito Sans',sans-serif" }}>{r.size}</div>
+                        <div style={{ fontSize: 12, color: "var(--blue)", fontWeight: 700 }}>{r.price}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 12 }}>* Rates are per trip. Fragile / high-value items may attract additional insurance fee. Same-day delivery only available on departures before 12pm.</p>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <div style={{ marginTop: 24, display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button className="btn btn-ghost" onClick={reset}>Cancel</button>
+              <button className="btn btn-navy" style={{ padding: "13px 32px" }}
+                onClick={() => {
+                  alert("📦 Courier booking submitted! Our team will contact you on WhatsApp within 15 minutes to confirm pickup details and payment.");
+                  reset();
+                }}>
+                📦 Submit Courier Booking
+              </button>
             </div>
           </div>
         )}
@@ -1474,8 +1644,8 @@ export default function App() {
         {step === "select-route" && (
           <div>
             <button className="btn btn-ghost" style={{ marginBottom: 24, fontSize: 13, padding: "8px 16px" }} onClick={reset}>← Home</button>
-            <div className="sora" style={{ fontSize: 11, letterSpacing: "3px", color: "var(--red)", marginBottom: 8, textTransform: "uppercase" }}>Step 1 of 4</div>
-            <h2 className="sora" style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Choose Route</h2>
+            <div className="nunito" style={{ fontSize: 11, letterSpacing: "3px", color: "var(--blue)", marginBottom: 8, textTransform: "uppercase" }}>Step 1 of 4</div>
+            <h2 className="nunito" style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Choose Route</h2>
             <p style={{ color: "var(--muted)", marginBottom: 24, fontSize: 14 }}>All fares include 20% discount — automatically applied</p>
             <div style={{ display: "grid", gap: 10 }}>
               {ROUTES.map(r => {
@@ -1487,7 +1657,7 @@ export default function App() {
                   <div key={r.id} className={`route-card ${route?.id === r.id ? "sel" : ""}`} onClick={() => setRoute(r)}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
-                        <div className="sora" style={{ fontWeight: 700, fontSize: 17 }}>{r.from} <span style={{ color: "var(--red)" }}>→</span> {r.to}</div>
+                        <div className="nunito" style={{ fontWeight: 700, fontSize: 17 }}>{r.from} <span style={{ color: "var(--red)" }}>→</span> {r.to}</div>
                         <div style={{ marginTop: 6, display: "flex", gap: 10, flexWrap: "wrap" }}>
                           <span style={{ fontSize: 12, color: "var(--muted)" }}>⏱ {r.duration}</span>
                           <span style={{ fontSize: 12, color: avail > 3 ? "var(--green)" : avail > 0 ? "var(--gold)" : "var(--red2)" }}>
@@ -1496,7 +1666,7 @@ export default function App() {
                         </div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div className="sora" style={{ fontSize: 20, fontWeight: 700, color: "var(--red)" }}>{fmt(p)}</div>
+                        <div className="nunito" style={{ fontSize: 20, fontWeight: 700, color: "var(--red)" }}>{fmt(p)}</div>
                         <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>{fmt(r.price)}</div>
                         <span className="badge badge-gold" style={{ marginTop: 4 }}>20% OFF</span>
                       </div>
@@ -1518,8 +1688,8 @@ export default function App() {
         {step === "select-seat" && (
           <div>
             <button className="btn btn-ghost" style={{ marginBottom: 24, fontSize: 13, padding: "8px 16px" }} onClick={() => setStep("select-route")}>← Change Route</button>
-            <div className="sora" style={{ fontSize: 11, letterSpacing: "3px", color: "var(--red)", marginBottom: 8, textTransform: "uppercase" }}>Step 2 of 4</div>
-            <h2 className="sora" style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Choose Your Seat</h2>
+            <div className="nunito" style={{ fontSize: 11, letterSpacing: "3px", color: "var(--blue)", marginBottom: 8, textTransform: "uppercase" }}>Step 2 of 4</div>
+            <h2 className="nunito" style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Choose Your Seat</h2>
             <div style={{ marginBottom: 16, color: "var(--muted)", fontSize: 14 }}>
               <span style={{ color: "var(--red)", fontWeight: 600 }}>{route.from} → {route.to}</span>
               &nbsp;·&nbsp;{fmt(price)}&nbsp;·&nbsp;
@@ -1558,7 +1728,7 @@ export default function App() {
                 if (isDriver) return (
                   <div style={{
                     width: 48, height: 48, borderRadius: 8,
-                    background: "#0A1628", border: "2px solid #1E3A5F",
+                    background: "#f8f9fc", border: "2px solid #1E3A5F",
                     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                     color: "#4A7A9B", fontSize: 9, fontWeight: 700, letterSpacing: ".5px", fontFamily: "'Sora',sans-serif"
                   }}>
@@ -1611,7 +1781,7 @@ export default function App() {
                           <RocketlineLogo size={20} />
                           <span style={{ fontFamily: "'Georgia','Times New Roman',serif", fontWeight: 700, fontSize: 12, color: "#fff", letterSpacing: "0.3px" }}>RocketLine Express</span>
                         </div>
-                        <span style={{ fontSize: 9, color: "rgba(255,255,255,.6)", fontFamily: "'DM Sans',sans-serif", letterSpacing: "2px" }}>ISHENDAAA</span>
+                        <span style={{ fontSize: 9, color: "rgba(255,255,255,.6)", fontFamily: "'Nunito Sans',sans-serif", letterSpacing: "2px" }}>ISHENDAAA</span>
                       </div>
                       {/* Windscreen */}
                       <div style={{
@@ -1744,7 +1914,7 @@ export default function App() {
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div className="sora" style={{ fontWeight: 700, fontSize: 20, color: "var(--red)" }}>{fmt(price)}</div>
+                  <div className="nunito" style={{ fontWeight: 700, fontSize: 20, color: "var(--red)" }}>{fmt(price)}</div>
                   <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>{fmt(route.price)}</div>
                 </div>
               </div>
@@ -1759,8 +1929,8 @@ export default function App() {
         {step === "form" && (
           <div>
             <button className="btn btn-ghost" style={{ marginBottom: 24, fontSize: 13, padding: "8px 16px" }} onClick={() => setStep("select-seat")}>← Back</button>
-            <div className="sora" style={{ fontSize: 11, letterSpacing: "3px", color: "var(--red)", marginBottom: 8, textTransform: "uppercase" }}>Step 3 of 4</div>
-            <h2 className="sora" style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Passenger Details</h2>
+            <div className="nunito" style={{ fontSize: 11, letterSpacing: "3px", color: "var(--blue)", marginBottom: 8, textTransform: "uppercase" }}>Step 3 of 4</div>
+            <h2 className="nunito" style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Passenger Details</h2>
             <p style={{ color: "var(--muted)", marginBottom: 24, fontSize: 14 }}>Your WhatsApp confirmation will be sent to the number you provide</p>
 
             {/* Booking summary */}
@@ -1778,7 +1948,7 @@ export default function App() {
               <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0 0" }}>
                 <span style={{ color: "var(--muted)", fontSize: 13 }}>Total</span>
                 <div style={{ textAlign: "right" }}>
-                  <div className="sora" style={{ fontWeight: 700, fontSize: 20, color: "var(--red)" }}>{fmt(price)}</div>
+                  <div className="nunito" style={{ fontWeight: 700, fontSize: 20, color: "var(--red)" }}>{fmt(price)}</div>
                   <div style={{ fontSize: 11, color: "var(--muted)", textDecoration: "line-through" }}>{fmt(route.price)}</div>
                 </div>
               </div>
@@ -1828,7 +1998,7 @@ export default function App() {
                     <span style={{ fontSize: 10, fontWeight: 900, color: "var(--mtn)", fontFamily: "'Sora',sans-serif", letterSpacing: ".5px" }}>MTN</span>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div className="sora" style={{ fontWeight: 700, color: "#FFC300", fontSize: 15 }}>MTN Mobile Money</div>
+                    <div className="nunito" style={{ fontWeight: 700, color: "#FFC300", fontSize: 15 }}>MTN Mobile Money</div>
                     <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>Numbers: 076, 077, 078, 039</div>
                   </div>
                   <div style={{
@@ -1848,7 +2018,7 @@ export default function App() {
                     <span style={{ fontSize: 8, fontWeight: 900, color: "var(--red2)", fontFamily: "'Sora',sans-serif", letterSpacing: ".5px", textAlign: "center", lineHeight: 1.2 }}>AIR<br/>TEL</span>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div className="sora" style={{ fontWeight: 700, color: "var(--red2)", fontSize: 15 }}>Airtel Money</div>
+                    <div className="nunito" style={{ fontWeight: 700, color: "var(--red2)", fontSize: 15 }}>Airtel Money</div>
                     <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>Numbers: 070, 074, 075</div>
                   </div>
                   <div style={{
@@ -1890,8 +2060,8 @@ export default function App() {
             {payState === "idle" && (
               <button className="btn btn-ghost" style={{ marginBottom: 24, fontSize: 13, padding: "8px 16px" }} onClick={() => setStep("form")}>← Back</button>
             )}
-            <div className="sora" style={{ fontSize: 11, letterSpacing: "3px", color: "var(--red)", marginBottom: 8, textTransform: "uppercase" }}>Step 4 of 4</div>
-            <h2 className="sora" style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Payment</h2>
+            <div className="nunito" style={{ fontSize: 11, letterSpacing: "3px", color: "var(--blue)", marginBottom: 8, textTransform: "uppercase" }}>Step 4 of 4</div>
+            <h2 className="nunito" style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>Payment</h2>
             <p style={{ color: "var(--muted)", marginBottom: 24, fontSize: 14 }}>Secure mobile money payment — no hidden charges</p>
 
             {/* Amount */}
@@ -1901,7 +2071,7 @@ export default function App() {
                 <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>Passenger: {form.name}</div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div className="sora" style={{ fontWeight: 800, fontSize: 24, color: "var(--red)" }}>{fmt(price)}</div>
+                <div className="nunito" style={{ fontWeight: 800, fontSize: 24, color: "var(--red)" }}>{fmt(price)}</div>
                 <span className="badge badge-gold">20% DISC</span>
               </div>
             </div>
@@ -1926,7 +2096,7 @@ export default function App() {
                     </span>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div className="sora" style={{ fontWeight: 700, fontSize: 15, color: payMethod === "mtn" ? "var(--mtn)" : "var(--red2)" }}>
+                    <div className="nunito" style={{ fontWeight: 700, fontSize: 15, color: payMethod === "mtn" ? "var(--mtn)" : "var(--red2)" }}>
                       {payMethod === "mtn" ? "MTN Mobile Money" : "Airtel Money"}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>Paying from: {form.phone}</div>
@@ -1948,7 +2118,7 @@ export default function App() {
             {(payState === "waiting" || payState === "polling") && (
               <div className="card" style={{ textAlign: "center", padding: 40 }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}>{payMethod === "mtn" ? "📱" : "📲"}</div>
-                <div className="sora" style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+                <div className="nunito" style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
                   {payState === "waiting" ? "Sending Payment Request..." : "Awaiting Your Confirmation..."}
                 </div>
                 <div style={{ color: "var(--muted)", fontSize: 14, marginBottom: 24, lineHeight: 1.7 }}>{payMsg}</div>
@@ -1966,7 +2136,7 @@ export default function App() {
             {payState === "failed" && (
               <div className="card" style={{ textAlign: "center", padding: 36 }}>
                 <div style={{ fontSize: 48, marginBottom: 12 }}>❌</div>
-                <div className="sora" style={{ fontSize: 20, fontWeight: 700, color: "var(--red2)", marginBottom: 12 }}>Payment Failed</div>
+                <div className="nunito" style={{ fontSize: 20, fontWeight: 700, color: "var(--red2)", marginBottom: 12 }}>Payment Failed</div>
                 <div style={{ color: "var(--muted)", fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>{payMsg}</div>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
                   <button className="btn btn-red" onClick={() => { setPayState("idle"); setPayMsg(""); }}>Try Again</button>
@@ -1982,7 +2152,7 @@ export default function App() {
           <div>
             <div style={{ textAlign: "center", marginBottom: 28 }}>
               <div style={{ fontSize: 64, marginBottom: 12 }}>🎉</div>
-              <h2 className="sora" style={{ fontSize: 32, fontWeight: 800, color: "var(--green)", marginBottom: 8 }}>Booking Confirmed!</h2>
+              <h2 className="nunito" style={{ fontSize: 32, fontWeight: 800, color: "var(--green)", marginBottom: 8 }}>Booking Confirmed!</h2>
               <p style={{ color: "var(--muted)", fontSize: 14 }}>Your seat is secured. Click below to receive your full confirmation on WhatsApp.</p>
             </div>
 
@@ -1990,7 +2160,7 @@ export default function App() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
                 <div>
                   <div style={{ fontSize: 11, color: "var(--muted)", letterSpacing: "1px", textTransform: "uppercase" }}>Booking Code</div>
-                  <div className="sora" style={{ fontSize: 22, fontWeight: 800, color: "var(--green)", letterSpacing: "1px", marginTop: 2 }}>{booking.code}</div>
+                  <div className="nunito" style={{ fontSize: 22, fontWeight: 800, color: "var(--green)", letterSpacing: "1px", marginTop: 2 }}>{booking.code}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <span className="badge badge-green">✓ PAID</span>
@@ -2016,7 +2186,7 @@ export default function App() {
             <div className="card" style={{ marginBottom: 18, background: "#050E1A", borderColor: "#1A3A20", display: "flex", gap: 14, alignItems: "center" }}>
               <WaterBottle size={34} />
               <div>
-                <div className="sora" style={{ fontWeight: 700, marginBottom: 2 }}>Free Water Bottle!</div>
+                <div className="nunito" style={{ fontWeight: 700, marginBottom: 2 }}>Free Water Bottle!</div>
                 <div style={{ fontSize: 13, color: "var(--muted)" }}>Claim your complimentary bottled water when you board the van.</div>
               </div>
             </div>
@@ -2043,7 +2213,7 @@ export default function App() {
               <div style={{ maxWidth: 380, margin: "0 auto" }}>
                 <div style={{ textAlign: "center", marginBottom: 28 }}>
                   <div style={{ fontSize: 52, marginBottom: 10 }}>🔐</div>
-                  <h2 className="sora" style={{ fontSize: 26, fontWeight: 800 }}>Rocketline Control Centre</h2>
+                  <h2 className="nunito" style={{ fontSize: 26, fontWeight: 800 }}>Rocketline Control Centre</h2>
                   <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 6 }}>{adminPin ? "Enter your admin password to access the full management system" : "First time — set your admin password"}</p>
                 </div>
                 <div className="card">
@@ -2074,7 +2244,7 @@ export default function App() {
               <div style={{ maxWidth: 380, margin: "0 auto" }}>
                 <div style={{ textAlign: "center", marginBottom: 24 }}>
                   <div style={{ fontSize: 44, marginBottom: 10 }}>🛡️</div>
-                  <h2 className="sora" style={{ fontSize: 22, fontWeight: 800 }}>Create Admin PIN</h2>
+                  <h2 className="nunito" style={{ fontSize: 22, fontWeight: 800 }}>Create Admin PIN</h2>
                   <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 6 }}>Choose a secure 4–8 digit PIN. Only share with authorised personnel.</p>
                 </div>
                 <div className="card">
@@ -2107,10 +2277,10 @@ export default function App() {
                   {/* Top bar */}
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
                     <div>
-                      <h2 className="sora" style={{ fontSize:22, fontWeight:800 }}>🚐 Control Centre</h2>
+                      <h2 className="nunito" style={{ fontSize:22, fontWeight:800 }}>🚐 Control Centre</h2>
                       <div style={{ fontSize:12, color:"var(--muted)", marginTop:3 }}>Rocketline Express Management System</div>
                     </div>
-                    <button onClick={() => setAdminStep("locked")} style={{ background:"rgba(229,38,26,0.1)", border:"1px solid rgba(229,38,26,0.3)", borderRadius:8, color:"var(--red2)", fontSize:12, padding:"7px 14px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>🔒 Lock</button>
+                    <button onClick={() => setAdminStep("locked")} style={{ background:"rgba(229,38,26,0.1)", border:"1px solid rgba(229,38,26,0.3)", borderRadius:8, color:"var(--red2)", fontSize:12, padding:"7px 14px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif" }}>🔒 Lock</button>
                   </div>
 
                   {/* System message */}
@@ -2124,7 +2294,7 @@ export default function App() {
                       { label:"Active Agents", value: agents.filter(a=>a.active).length, color:"#4A9EFF" },
                       { label:"Cancellations", value: cancelledCount, color:"var(--red2)" },
                     ].map(k => (
-                      <div key={k.label} style={{ background:"#071022", borderRadius:10, padding:"12px 14px", border:"1px solid var(--border)" }}>
+                      <div key={k.label} style={{ background:"#fff", borderRadius:10, padding:"12px 14px", border:"1px solid var(--border)" }}>
                         <div style={{ fontSize:18, fontWeight:800, color:k.color, fontFamily:"'Sora',sans-serif" }}>{k.value}</div>
                         <div style={{ fontSize:10, color:"var(--muted)", marginTop:3 }}>{k.label}</div>
                       </div>
@@ -2148,7 +2318,7 @@ export default function App() {
                         background: adminTab===t.key ? "var(--red)" : "rgba(255,255,255,0.05)",
                         border: adminTab===t.key ? "none" : "1px solid var(--border)",
                         color: adminTab===t.key ? "#fff" : "var(--muted)",
-                        borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:600
+                        borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif", fontWeight:600
                       }}>{t.label}</button>
                     ))}
                   </div>
@@ -2166,7 +2336,7 @@ export default function App() {
                             <div key={r.id} className="card" style={{ borderColor: van ? "rgba(245,166,35,0.4)" : "var(--border)" }}>
                               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
                                 <div>
-                                  <div className="sora" style={{ fontWeight:700, fontSize:14 }}>{r.from} → {r.to}</div>
+                                  <div className="nunito" style={{ fontWeight:700, fontSize:14 }}>{r.from} → {r.to}</div>
                                   <div style={{ fontSize:11, color:"var(--muted)", marginTop:2 }}>
                                     ⏱ {r.duration} · <span style={{ color: avail>3?"var(--green)":avail>0?"var(--gold)":"var(--red2)" }}>💺 {avail===0?"FULL":`${avail}/${CONFIG.TOTAL_SEATS} seats`}</span>
                                     {routePrices[r.id] && <span style={{ color:"var(--gold)" }}> · UGX {disc(routePrices[r.id]).toLocaleString()}</span>}
@@ -2174,7 +2344,7 @@ export default function App() {
                                 </div>
                                 {van && <div style={{ textAlign:"right" }}>
                                   <div style={{ fontSize:9, color:"var(--muted)", textTransform:"uppercase", letterSpacing:"1px" }}>Active Van</div>
-                                  <div className="sora" style={{ fontWeight:800, fontSize:20, color:"var(--gold)", letterSpacing:"2px" }}>...{van.suffix}</div>
+                                  <div className="nunito" style={{ fontWeight:800, fontSize:20, color:"var(--gold)", letterSpacing:"2px" }}>...{van.suffix}</div>
                                   <div style={{ fontSize:9, color:"var(--muted)" }}>{van.plate}</div>
                                 </div>}
                               </div>
@@ -2183,7 +2353,7 @@ export default function App() {
                                   value={plateInputs[r.id]||""} style={{ flex:1, fontSize:13, letterSpacing:"1px", fontWeight:600 }}
                                   onChange={e => { setPlateInputs(p=>({...p,[r.id]:e.target.value.toUpperCase()})); setPlateErrors(er=>({...er,[r.id]:""})); }}/>
                                 <button className="btn btn-red" style={{ padding:"12px 16px", fontSize:12 }} onClick={() => handleSetPlate(r.id)}>Set</button>
-                                {van && <button onClick={()=>handleClearPlate(r.id)} style={{ background:"rgba(229,38,26,0.08)", border:"1px solid rgba(229,38,26,0.25)", borderRadius:8, color:"var(--red2)", fontSize:11, padding:"12px 12px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Clear</button>}
+                                {van && <button onClick={()=>handleClearPlate(r.id)} style={{ background:"rgba(229,38,26,0.08)", border:"1px solid rgba(229,38,26,0.25)", borderRadius:8, color:"var(--red2)", fontSize:11, padding:"12px 12px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif" }}>Clear</button>}
                               </div>
                               {plateErrors[r.id] && <div style={{ color:"var(--red2)", fontSize:11, marginTop:5 }}>⚠️ {plateErrors[r.id]}</div>}
                               {plateSaved[r.id] && <div style={{ color:"var(--green)", fontSize:11, marginTop:5 }}>✅ Saved! Booking code suffix: <strong>...{activeVans[r.id]?.suffix}</strong></div>}
@@ -2205,7 +2375,7 @@ export default function App() {
                             <div key={r.id} className="card">
                               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                                 <div>
-                                  <div className="sora" style={{ fontWeight:700, fontSize:14 }}>{r.from} → {r.to}</div>
+                                  <div className="nunito" style={{ fontWeight:700, fontSize:14 }}>{r.from} → {r.to}</div>
                                   <div style={{ fontSize:11, color:"var(--muted)", marginTop:2 }}>⏱ {r.duration}</div>
                                 </div>
                                 <div style={{ textAlign:"right" }}>
@@ -2230,7 +2400,7 @@ export default function App() {
                   {adminTab === "vehicles" && (
                     <div>
                       <div className="card" style={{ marginBottom:16 }}>
-                        <div className="sora" style={{ fontWeight:700, fontSize:14, marginBottom:12 }}>Add New Vehicle</div>
+                        <div className="nunito" style={{ fontWeight:700, fontSize:14, marginBottom:12 }}>Add New Vehicle</div>
                         <div style={{ display:"grid", gap:8 }}>
                           <input className="input" placeholder="Registration plate (e.g. UA 001AA)" value={newVehicle.plate}
                             onChange={e => setNewVehicle(v=>({...v,plate:e.target.value.toUpperCase()}))}/>
@@ -2244,14 +2414,14 @@ export default function App() {
                         {vehicles.map(v => (
                           <div key={v.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", borderColor: v.active?"rgba(29,185,84,0.3)":"var(--border)" }}>
                             <div>
-                              <div className="sora" style={{ fontWeight:700, fontSize:15, color:"var(--gold)", letterSpacing:"1px" }}>{v.plate}</div>
+                              <div className="nunito" style={{ fontWeight:700, fontSize:15, color:"var(--gold)", letterSpacing:"1px" }}>{v.plate}</div>
                               <div style={{ fontSize:12, color:"var(--muted)", marginTop:2 }}>Driver: {v.driver} · Suffix: <strong style={{color:"var(--gold)"}}>...{v.suffix}</strong></div>
                             </div>
                             <div style={{ display:"flex", gap:6 }}>
-                              <button onClick={()=>toggleVehicle(v.id)} style={{ background: v.active?"rgba(29,185,84,0.1)":"rgba(229,38,26,0.08)", border:`1px solid ${v.active?"rgba(29,185,84,0.3)":"rgba(229,38,26,0.3)"}`, borderRadius:6, color: v.active?"var(--green)":"var(--red2)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                              <button onClick={()=>toggleVehicle(v.id)} style={{ background: v.active?"rgba(29,185,84,0.1)":"rgba(229,38,26,0.08)", border:`1px solid ${v.active?"rgba(29,185,84,0.3)":"rgba(229,38,26,0.3)"}`, borderRadius:6, color: v.active?"var(--green)":"var(--red2)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif" }}>
                                 {v.active ? "Active" : "Inactive"}
                               </button>
-                              <button onClick={()=>removeVehicle(v.id)} style={{ background:"transparent", border:"1px solid var(--border)", borderRadius:6, color:"var(--muted)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+                              <button onClick={()=>removeVehicle(v.id)} style={{ background:"transparent", border:"1px solid var(--border)", borderRadius:6, color:"var(--muted)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif" }}>Remove</button>
                             </div>
                           </div>
                         ))}
@@ -2263,7 +2433,7 @@ export default function App() {
                   {adminTab === "schedules" && (
                     <div>
                       <div className="card" style={{ marginBottom:16 }}>
-                        <div className="sora" style={{ fontWeight:700, fontSize:14, marginBottom:12 }}>Add Schedule</div>
+                        <div className="nunito" style={{ fontWeight:700, fontSize:14, marginBottom:12 }}>Add Schedule</div>
                         <div style={{ display:"grid", gap:8 }}>
                           <select className="input" value={newSchedule.routeId} onChange={e=>setNewSchedule(s=>({...s,routeId:e.target.value}))}>
                             <option value="">Select Route</option>
@@ -2293,10 +2463,10 @@ export default function App() {
                           return (
                             <div key={s.id} className="card" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                               <div>
-                                <div className="sora" style={{ fontWeight:700, fontSize:13 }}>{r ? `${r.from} → ${r.to}` : s.routeId}</div>
+                                <div className="nunito" style={{ fontWeight:700, fontSize:13 }}>{r ? `${r.from} → ${r.to}` : s.routeId}</div>
                                 <div style={{ fontSize:11, color:"var(--muted)", marginTop:2 }}>🕐 {s.dep}{s.arr ? ` → ${s.arr}` : ""} · {s.days} · {v ? v.plate : "No vehicle"}</div>
                               </div>
-                              <button onClick={()=>removeSchedule(s.id)} style={{ background:"transparent", border:"1px solid var(--border)", borderRadius:6, color:"var(--red2)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+                              <button onClick={()=>removeSchedule(s.id)} style={{ background:"transparent", border:"1px solid var(--border)", borderRadius:6, color:"var(--red2)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif" }}>Remove</button>
                             </div>
                           );
                         })}
@@ -2318,7 +2488,7 @@ export default function App() {
                             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                               <div>
                                 <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-                                  <span className="sora" style={{ fontWeight:800, fontSize:13, color:"var(--gold)", letterSpacing:"1px" }}>{b.code}</span>
+                                  <span className="nunito" style={{ fontWeight:800, fontSize:13, color:"var(--gold)", letterSpacing:"1px" }}>{b.code}</span>
                                   {b.status==="cancelled" && <span style={{ background:"rgba(229,38,26,0.2)", color:"var(--red2)", fontSize:10, padding:"2px 6px", borderRadius:4, fontWeight:700 }}>CANCELLED</span>}
                                 </div>
                                 <div style={{ fontSize:12, color:"var(--text)" }}>{b.name} · {b.routeFrom} → {b.routeTo} · Seat {b.seat}</div>
@@ -2327,7 +2497,7 @@ export default function App() {
                                 </div>
                               </div>
                               {b.status !== "cancelled" && (
-                                <button onClick={() => cancelBooking(b.code)} style={{ background:"rgba(229,38,26,0.08)", border:"1px solid rgba(229,38,26,0.25)", borderRadius:6, color:"var(--red2)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>Cancel</button>
+                                <button onClick={() => cancelBooking(b.code)} style={{ background:"rgba(229,38,26,0.08)", border:"1px solid rgba(229,38,26,0.25)", borderRadius:6, color:"var(--red2)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif", flexShrink:0 }}>Cancel</button>
                               )}
                             </div>
                           </div>
@@ -2345,23 +2515,23 @@ export default function App() {
                             background: revenueWindow===k?"var(--red)":"rgba(255,255,255,0.05)",
                             border: revenueWindow===k?"none":"1px solid var(--border)",
                             color: revenueWindow===k?"#fff":"var(--muted)",
-                            borderRadius:8, padding:"7px 14px", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif"
+                            borderRadius:8, padding:"7px 14px", fontSize:12, cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif"
                           }}>{l}</button>
                         ))}
                       </div>
-                      <div style={{ background:"#071022", borderRadius:10, padding:"16px", marginBottom:16, border:"1px solid var(--border)" }}>
+                      <div style={{ background:"#fff", borderRadius:10, padding:"16px", marginBottom:16, border:"1px solid var(--border)" }}>
                         <div style={{ fontSize:11, color:"var(--muted)", textTransform:"uppercase", letterSpacing:"1px" }}>Total Revenue ({revenueWindow})</div>
-                        <div className="sora" style={{ fontSize:32, fontWeight:800, color:"var(--green)", marginTop:4 }}>UGX {totalRev.toLocaleString()}</div>
+                        <div className="nunito" style={{ fontSize:32, fontWeight:800, color:"var(--green)", marginTop:4 }}>UGX {totalRev.toLocaleString()}</div>
                         <div style={{ fontSize:12, color:"var(--muted)", marginTop:4 }}>{filtered.length} bookings in this period</div>
                       </div>
                       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:12 }}>
                         <button className="btn btn-ghost" style={{ fontSize:12, padding:"8px 14px" }} onClick={() => downloadCSV(filtered, `Revenue_${revenueWindow}`)}>⬇ Export to CSV / Excel</button>
                       </div>
                       {/* By Route */}
-                      <div className="sora" style={{ fontWeight:700, fontSize:13, marginBottom:8, color:"var(--muted)", textTransform:"uppercase", letterSpacing:"1px" }}>By Route</div>
+                      <div className="nunito" style={{ fontWeight:700, fontSize:13, marginBottom:8, color:"var(--muted)", textTransform:"uppercase", letterSpacing:"1px" }}>By Route</div>
                       <div style={{ display:"grid", gap:6, marginBottom:16 }}>
                         {Object.entries(byRoute).sort((a,b)=>b[1]-a[1]).map(([route, rev]) => (
-                          <div key={route} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"#071022", borderRadius:8, padding:"10px 14px", border:"1px solid var(--border)" }}>
+                          <div key={route} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"#fff", borderRadius:8, padding:"10px 14px", border:"1px solid var(--border)" }}>
                             <span style={{ fontSize:13 }}>{route}</span>
                             <span style={{ fontWeight:700, color:"var(--green)", fontFamily:"'Sora',sans-serif" }}>UGX {rev.toLocaleString()}</span>
                           </div>
@@ -2369,10 +2539,10 @@ export default function App() {
                         {Object.keys(byRoute).length===0 && <div style={{ color:"var(--muted)", fontSize:13, padding:12 }}>No data for this period.</div>}
                       </div>
                       {/* By Vehicle */}
-                      <div className="sora" style={{ fontWeight:700, fontSize:13, marginBottom:8, color:"var(--muted)", textTransform:"uppercase", letterSpacing:"1px" }}>By Vehicle</div>
+                      <div className="nunito" style={{ fontWeight:700, fontSize:13, marginBottom:8, color:"var(--muted)", textTransform:"uppercase", letterSpacing:"1px" }}>By Vehicle</div>
                       <div style={{ display:"grid", gap:6, marginBottom:16 }}>
                         {Object.entries(byVehicle).sort((a,b)=>b[1]-a[1]).map(([plate, rev]) => (
-                          <div key={plate} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"#071022", borderRadius:8, padding:"10px 14px", border:"1px solid var(--border)" }}>
+                          <div key={plate} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"#fff", borderRadius:8, padding:"10px 14px", border:"1px solid var(--border)" }}>
                             <span style={{ fontSize:13, fontFamily:"'Sora',sans-serif", fontWeight:600, color:"var(--gold)" }}>{plate}</span>
                             <span style={{ fontWeight:700, color:"var(--green)", fontFamily:"'Sora',sans-serif" }}>UGX {rev.toLocaleString()}</span>
                           </div>
@@ -2380,10 +2550,10 @@ export default function App() {
                         {Object.keys(byVehicle).length===0 && <div style={{ color:"var(--muted)", fontSize:13, padding:12 }}>No data for this period.</div>}
                       </div>
                       {/* By Driver */}
-                      <div className="sora" style={{ fontWeight:700, fontSize:13, marginBottom:8, color:"var(--muted)", textTransform:"uppercase", letterSpacing:"1px" }}>By Driver</div>
+                      <div className="nunito" style={{ fontWeight:700, fontSize:13, marginBottom:8, color:"var(--muted)", textTransform:"uppercase", letterSpacing:"1px" }}>By Driver</div>
                       <div style={{ display:"grid", gap:6 }}>
                         {Object.entries(byDriver).sort((a,b)=>b[1]-a[1]).map(([driver, rev]) => (
-                          <div key={driver} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"#071022", borderRadius:8, padding:"10px 14px", border:"1px solid var(--border)" }}>
+                          <div key={driver} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"#fff", borderRadius:8, padding:"10px 14px", border:"1px solid var(--border)" }}>
                             <span style={{ fontSize:13 }}>👨‍✈️ {driver}</span>
                             <span style={{ fontWeight:700, color:"var(--green)", fontFamily:"'Sora',sans-serif" }}>UGX {rev.toLocaleString()}</span>
                           </div>
@@ -2397,7 +2567,7 @@ export default function App() {
                   {adminTab === "agents" && (
                     <div>
                       <div className="card" style={{ marginBottom:16 }}>
-                        <div className="sora" style={{ fontWeight:700, fontSize:14, marginBottom:12 }}>Add Call Centre Agent</div>
+                        <div className="nunito" style={{ fontWeight:700, fontSize:14, marginBottom:12 }}>Add Call Centre Agent</div>
                         <div style={{ display:"grid", gap:8 }}>
                           <input className="input" placeholder="Agent full name" value={newAgent.name} onChange={e=>setNewAgent(a=>({...a,name:e.target.value}))}/>
                           <input className="input" placeholder="Phone number" value={newAgent.phone} onChange={e=>setNewAgent(a=>({...a,phone:e.target.value}))}/>
@@ -2414,15 +2584,15 @@ export default function App() {
                             <div key={a.id} className="card" style={{ borderColor: a.active?"rgba(74,158,255,0.3)":"var(--border)" }}>
                               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                                 <div>
-                                  <div className="sora" style={{ fontWeight:700, fontSize:14 }}>👤 {a.name}</div>
+                                  <div className="nunito" style={{ fontWeight:700, fontSize:14 }}>👤 {a.name}</div>
                                   <div style={{ fontSize:11, color:"var(--muted)", marginTop:2 }}>{a.phone} · PIN: {"•".repeat(a.pin.length)}</div>
                                   <div style={{ fontSize:11, color:"var(--green)", marginTop:4 }}>{agentBookings.length} bookings · UGX {agentRev.toLocaleString()}</div>
                                 </div>
                                 <div style={{ display:"flex", gap:6 }}>
-                                  <button onClick={()=>toggleAgent(a.id)} style={{ background: a.active?"rgba(29,185,84,0.1)":"rgba(229,38,26,0.08)", border:`1px solid ${a.active?"rgba(29,185,84,0.3)":"rgba(229,38,26,0.3)"}`, borderRadius:6, color: a.active?"var(--green)":"var(--red2)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                                  <button onClick={()=>toggleAgent(a.id)} style={{ background: a.active?"rgba(29,185,84,0.1)":"rgba(229,38,26,0.08)", border:`1px solid ${a.active?"rgba(29,185,84,0.3)":"rgba(229,38,26,0.3)"}`, borderRadius:6, color: a.active?"var(--green)":"var(--red2)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif" }}>
                                     {a.active?"Active":"Inactive"}
                                   </button>
-                                  <button onClick={()=>removeAgent(a.id)} style={{ background:"transparent", border:"1px solid var(--border)", borderRadius:6, color:"var(--muted)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+                                  <button onClick={()=>removeAgent(a.id)} style={{ background:"transparent", border:"1px solid var(--border)", borderRadius:6, color:"var(--muted)", fontSize:11, padding:"6px 10px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif" }}>Remove</button>
                                 </div>
                               </div>
                             </div>
@@ -2445,7 +2615,7 @@ export default function App() {
                       <div style={{ display:"grid", gap:6, maxHeight:500, overflowY:"auto" }}>
                         {agentLogs.length===0 && <div style={{ color:"var(--muted)", fontSize:13, textAlign:"center", padding:20 }}>No agent activity recorded yet.</div>}
                         {[...agentLogs].reverse().map((l, i) => (
-                          <div key={i} style={{ background:"#071022", borderRadius:8, padding:"10px 14px", border:"1px solid var(--border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                          <div key={i} style={{ background:"#fff", borderRadius:8, padding:"10px 14px", border:"1px solid var(--border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                             <div>
                               <span style={{ fontWeight:700, color:"#4A9EFF", fontSize:13 }}>👤 {l.agentName}</span>
                               <span style={{ color:"var(--muted)", fontSize:12 }}> → {l.action} for </span>
@@ -2503,13 +2673,13 @@ export default function App() {
             <button className="btn btn-ghost" style={{ marginBottom:20, fontSize:13, padding:"8px 16px" }} onClick={() => setStep("home")}>← Back</button>
             <div style={{ textAlign:"center", marginBottom:24 }}>
               <div style={{ fontSize:48, marginBottom:10 }}>⭐</div>
-              <h2 className="sora" style={{ fontSize:26, fontWeight:800 }}>Share Your Experience</h2>
+              <h2 className="nunito" style={{ fontSize:26, fontWeight:800 }}>Share Your Experience</h2>
               <p style={{ color:"var(--muted)", fontSize:13, marginTop:6 }}>Your feedback helps us improve every journey.</p>
             </div>
             {feedbackSent ? (
               <div className="card" style={{ textAlign:"center", borderColor:"rgba(29,185,84,0.3)", background:"#030F08" }}>
                 <div style={{ fontSize:52, marginBottom:12 }}>🙏</div>
-                <div className="sora" style={{ fontWeight:800, fontSize:22, color:"var(--green)" }}>Thank you!</div>
+                <div className="nunito" style={{ fontWeight:800, fontSize:22, color:"var(--green)" }}>Thank you!</div>
                 <div style={{ color:"var(--muted)", fontSize:13, marginTop:8 }}>Your feedback has been recorded. We appreciate it!</div>
               </div>
             ) : (
@@ -2564,13 +2734,13 @@ export default function App() {
         <div style={{ maxWidth: 780, margin: "0 auto", display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
           <button
             onClick={() => { setStep("admin"); setAdminStep("locked"); }}
-            style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(229,38,26,0.08)", border:"1px solid rgba(229,38,26,0.3)", borderRadius:10, color:"#FF6B5B", fontSize:13, padding:"12px 22px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:700 }}
+            style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(229,38,26,0.08)", border:"1px solid rgba(229,38,26,0.3)", borderRadius:10, color:"#FF6B5B", fontSize:13, padding:"12px 22px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif", fontWeight:700 }}
           >
             🔒 Admin / Staff Login
           </button>
           <button
             onClick={() => setStep("feedback")}
-            style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(245,166,35,0.08)", border:"1px solid rgba(245,166,35,0.3)", borderRadius:10, color:"var(--gold)", fontSize:13, padding:"12px 22px", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", fontWeight:700 }}
+            style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(245,166,35,0.08)", border:"1px solid rgba(245,166,35,0.3)", borderRadius:10, color:"var(--gold)", fontSize:13, padding:"12px 22px", cursor:"pointer", fontFamily:"'Nunito Sans',sans-serif", fontWeight:700 }}
           >
             ⭐ Leave Feedback
           </button>
@@ -2578,7 +2748,7 @@ export default function App() {
       </div>
 
       {/* Footer */}
-      <div style={{ borderTop: "1px solid var(--border)", padding: "28px 16px", textAlign: "center" }}>
+      <div style={{ borderTop: "1px solid var(--border)", padding: "36px 16px", textAlign: "center", background: "var(--navy)", color: "#fff", marginLeft: -16, marginRight: -16 }}>
         <div style={{ maxWidth: 780, margin: "0 auto" }}>
           {/* Footer logo */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -2586,17 +2756,17 @@ export default function App() {
               <img src={LOGO_R} alt="Rocketline R" style={{ height: 56, width: "auto", objectFit: "contain", opacity: 0.85 }} />
               <div style={{ textAlign: "left" }}>
                 <img src={LOGO_MAIN} alt="Rocketline Express" style={{ height: 52, width: "auto", objectFit: "contain" }} />
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: "5px", marginTop: 3, fontFamily: "'DM Sans',sans-serif", textTransform: "uppercase" }}>ISHENDAAA · Premier Travel, Linking Cities</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: "5px", marginTop: 3, fontFamily: "'Nunito Sans',sans-serif", textTransform: "uppercase" }}>ISHENDAAA · Premier Travel, Linking Cities</div>
               </div>
             </div>
           </div>
 
           {/* Customer care */}
           <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-            <a href="tel:+256701196725" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--muted)", fontSize: 13, textDecoration: "none", fontFamily: "'DM Sans',sans-serif" }}>
+            <a href="tel:+256701196725" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--muted)", fontSize: 13, textDecoration: "none", fontFamily: "'Nunito Sans',sans-serif" }}>
               📞 +256 701 196 725
             </a>
-            <a href="https://wa.me/256701196725" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#25D366", fontSize: 13, textDecoration: "none", fontFamily: "'DM Sans',sans-serif" }}>
+            <a href="https://wa.me/256701196725" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#25D366", fontSize: 13, textDecoration: "none", fontFamily: "'Nunito Sans',sans-serif" }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               WhatsApp Customer Care
             </a>
