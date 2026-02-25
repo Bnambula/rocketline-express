@@ -1285,7 +1285,6 @@ export default function App() {
               <div style={{ position: "absolute", top: 12, left: 12, zIndex: 10, background: "rgba(0,0,0,0.35)", borderRadius: 10, padding: "4px 8px", backdropFilter: "blur(4px)" }}>
                 <img src={LOGO_MAIN} alt="Rocketline Express" style={{ height: 36, width: "auto", objectFit: "contain" }} />
               </div>
-              </div>
 
               {/* Book now button floating top-right */}
               <button className="btn btn-red" onClick={() => setStep("select-route")}
