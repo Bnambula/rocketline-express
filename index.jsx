@@ -2727,8 +2727,8 @@ export default function App() {
             ))}
           </div>
         )}
+      </div>
 
-      {/* ── STAFF ACCESS PANEL (above footer) ── */}
       <div style={{ borderTop: "1px solid var(--border)", padding: "20px 16px", background: "#060F20" }}>
         <div style={{ maxWidth: 780, margin: "0 auto", display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
           <button
