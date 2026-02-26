@@ -2730,7 +2730,7 @@ export default function App() {
         )}
       </div>
 
-      <div style={{ borderTop: "1px solid var(--border)", padding: "20px 16px", background: "#060F20" }}>
+        <div style={{ borderTop: "1px solid var(--border)", padding: "20px 16px", background: "#060F20" }}>
         <div style={{ maxWidth: 780, margin: "0 auto", display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
           <button
             onClick={() => { setStep("admin"); setAdminStep("locked"); }}
@@ -2747,8 +2747,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ borderTop: "1px solid var(--border)", padding: "36px 16px", textAlign: "center", background: "var(--navy)", color: "#fff", marginLeft: -16, marginRight: -16 }}>
+        {/* Footer */}
+        <div style={{ borderTop: "1px solid var(--border)", padding: "36px 16px", textAlign: "center", background: "var(--navy)", color: "#fff", marginLeft: -16, marginRight: -16 }}>
         <div style={{ maxWidth: 780, margin: "0 auto" }}>
           {/* Footer logo */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -2779,6 +2779,7 @@ export default function App() {
             To go live: Register at momodeveloper.mtn.com & developers.airtel.africa, then update credentials in CONFIG at the top of this file.
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
