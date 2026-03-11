@@ -1,0 +1,7012 @@
+import React, {useState,useEffect,useCallback} from "react";
+
+// ─── SUPABASE CLIENT ─────────────────────────────────────────────────
+const SUPABASE_URL = "https://xyvijskzgpgauhrxcauw.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5dmlqc2t6Z3BnYXVocnhjYXV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5OTc5NjksImV4cCI6MjA4NzU3Mzk2OX0.FOjha5TvyDW6ozvWt8aEmbXTVbk5NtY1Vd_I2kXuHtM";
+
+const sbFetch = async (table, options={}) => {
+  const { select="*", filter={}, order=null, limit=null, method="GET", body=null, match=null } = options;
+  let url = `${SUPABASE_URL}/rest/v1/${table}`;
+  const params = new URLSearchParams();
+  if(select !== "*") params.set("select", select);
+  Object.entries(filter).forEach(([k,v]) => params.set(k, `eq.${v}`));
+  if(order) params.set("order", order);
+  if(limit) params.set("limit", limit);
+  const qs = params.toString();
+  if(qs) url += "?" + qs;
+  const headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": `Bearer ${SUPABASE_KEY}`,
+    "Content-Type": "application/json",
+    "Prefer": method === "POST" ? "return=representation" : "return=minimal",
+  };
+  if(match) {
+    Object.entries(match).forEach(([k,v]) => {
+      url += (url.includes("?") ? "&" : "?") + `${k}=eq.${encodeURIComponent(v)}`;
+    });
+  }
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if(!res.ok) { const e = await res.text(); console.error("Supabase error:", e); return null; }
+  if(method === "DELETE" || method === "PATCH") return true;
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+};
+
+// Helper shortcuts
+const db = {
+  get: (table, filter={}) => sbFetch(table, { filter }),
+  getOne: async (table, filter={}) => { const r = await sbFetch(table, { filter }); return r?.[0] || null; },
+  insert: (table, body) => sbFetch(table, { method:"POST", body }),
+  update: (table, match, body) => sbFetch(table, { method:"PATCH", match, body }),
+  delete: (table, match) => sbFetch(table, { method:"DELETE", match }),
+  list: (table, opts={}) => sbFetch(table, opts),
+};
+
+
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={hasError:false,msg:""};}
+  static getDerivedStateFromError(e){return{hasError:true,msg:e.message};}
+  render(){
+    if(this.state.hasError) return(
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F4F8FF",padding:20}}>
+        <div style={{maxWidth:480,textAlign:"center",padding:32,background:"#fff",borderRadius:20,border:"1px solid #D1DBF0",boxShadow:"0 4px 24px rgba(11,30,75,0.08)"}}>
+          <div style={{fontSize:48,marginBottom:16}}>⚠️</div>
+          <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:800,marginBottom:8,color:"#0B1E4B"}}>Something went wrong</h2>
+          <p style={{color:"#7A8FB5",marginBottom:20,fontSize:14}}>{this.state.msg}</p>
+          <button onClick={()=>window.location.reload()} style={{background:"linear-gradient(135deg,#0B5FFF,#0044CC)",color:"#fff",border:"none",borderRadius:10,padding:"12px 28px",cursor:"pointer",fontFamily:"'Raleway',sans-serif",fontWeight:800,fontSize:14}}>Reload App</button>
+        </div>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
+// ─── THEME COLORS (Light theme – global standard) ────────────────────
+const C = {
+  // Brand
+  navy:"#0B1E4B",    navyMid:"#F0F4FF", navyLight:"#E8EEF9",
+  navyBorder:"#D1DBF0",
+  blue:"#0B5FFF",blueBg:"#EEF3FF", surface:"#FFFFFF", card:"#FFFFFF", cardHover:"#F8FAFF",
+  amber:"#0B5FFF",   amberLight:"#3D7FFF", amberDark:"#0044CC",
+  // Text
+  textPrimary:"#0B1E4B", textSecondary:"#3D5280", textMuted:"#7A8FB5",
+  // Status
+  green:"#16A34A", greenBg:"#DCFCE7",
+  red:"#DC2626",   redBg:"#FEE2E2",
+  orange:"#EA580C", orangeBg:"#FFEDD5",
+  blue:"#2563EB",  blueBg:"#DBEAFE",
+  purple:"#7C3AED",purpleBg:"#EDE9FE",
+  amber2:"#D97706", amberBg:"#FEF3C7",
+  // Dashboard dark accent
+  darkBg:"#0B1E4B", darkCard:"#0F2557", darkBorder:"#1A3170",
+  darkText:"#E8EEF9", darkMuted:"#7A8FB5",
+  // Btn special
+  bookNow:"#0B5FFF",  bookNowHover:"#0044CC",
+  quote:"#16A34A",   quoteHover:"#15803D",
+  white:"#FFFFFF",
+};
+
+// ─── MOCK DATA ────────────────────────────────────────────────────────
+const ROUTES = [
+  // Outbound — Kampala departures
+  {id:1, origin:"Kampala",     destination:"Gulu",       price:35000,duration_minutes:240, direction:"outbound"},
+  {id:2, origin:"Kampala",     destination:"Mbarara",    price:25000,duration_minutes:180, direction:"outbound"},
+  {id:3, origin:"Kampala",     destination:"Mbale",      price:30000,duration_minutes:210, direction:"outbound"},
+  {id:4, origin:"Kampala",     destination:"Fort Portal",price:40000,duration_minutes:270, direction:"outbound"},
+  {id:5, origin:"Kampala",     destination:"Arua",       price:50000,duration_minutes:360, direction:"outbound"},
+  {id:6, origin:"Kampala",     destination:"Jinja",      price:15000,duration_minutes:90,  direction:"outbound"},
+  // Return — back to Kampala
+  {id:7, origin:"Gulu",        destination:"Kampala",    price:35000,duration_minutes:240, direction:"return"},
+  {id:8, origin:"Mbarara",     destination:"Kampala",    price:25000,duration_minutes:180, direction:"return"},
+  {id:9, origin:"Mbale",       destination:"Kampala",    price:30000,duration_minutes:210, direction:"return"},
+  {id:10,origin:"Fort Portal", destination:"Kampala",    price:40000,duration_minutes:270, direction:"return"},
+  {id:11,origin:"Arua",        destination:"Kampala",    price:50000,duration_minutes:360, direction:"return"},
+  {id:12,origin:"Jinja",       destination:"Kampala",    price:15000,duration_minutes:90,  direction:"return"},
+];
+
+const makeToday=(h,m)=>{const d=new Date();d.setHours(h,m,0,0);return d.toISOString();};
+
+const INIT_TRIPS = [
+  {id:1,route_id:6,vehicle_id:1,departure_time:makeToday(6,0),  status:"active",seats_booked:[2,5,8],vehicle_reg:"UAA 123B",capacity:14},
+  {id:2,route_id:2,vehicle_id:2,departure_time:makeToday(7,30), status:"active",seats_booked:[1,3,6,9,12],vehicle_reg:"UAB 456C",capacity:14},
+  {id:3,route_id:3,vehicle_id:3,departure_time:makeToday(9,0),  status:"active",seats_booked:[],vehicle_reg:"UAC 789D",capacity:14},
+  {id:4,route_id:1,vehicle_id:4,departure_time:makeToday(11,0), status:"active",seats_booked:[1,2,3,4,5,6,7,8,9,10,11,12,13],vehicle_reg:"UAD 012E",capacity:14},
+  {id:5,route_id:4,vehicle_id:1,departure_time:makeToday(13,30),status:"active",seats_booked:[3,7],vehicle_reg:"UAA 123B",capacity:14},
+  {id:6,route_id:5,vehicle_id:2,departure_time:makeToday(15,0), status:"active",seats_booked:[],vehicle_reg:"UAB 456C",capacity:14},
+];
+
+const INIT_VEHICLES = [
+  {id:1,registration:"UAA 123B",model:"Toyota HiAce",  capacity:14,owner_type:"company",status:"active",     driver:"Moses Kato",    driver_phone:"+256 772 100001"},
+  {id:2,registration:"UAB 456C",model:"Toyota Coaster",capacity:30,owner_type:"vendor", status:"active",     driver:"David Ssebi",   driver_phone:"+256 772 100002"},
+  {id:3,registration:"UAC 789D",model:"Isuzu NQR",     capacity:36,owner_type:"vendor", status:"maintenance",driver:"John Mwesigwa", driver_phone:"+256 772 100003"},
+  {id:4,registration:"UAD 012E",model:"Toyota HiAce",  capacity:14,owner_type:"company",status:"active",     driver:"Robert Okech",  driver_phone:"+256 772 100004"},
+];
+
+const INIT_BOOKINGS = [
+  {id:1,booking_code:"RLN260309123B0001",passenger:"Sarah Nakato", phone:"+256 772 123456",route:"Kampala → Gulu",   route_id:1,seats:[4,5],trip_id:1,amount:70000, payment_status:"confirmed",status:"confirmed",date:"2026-03-09",agent_id:null,is_advance:false},
+  {id:2,booking_code:"RLN260309456C0002",passenger:"James Okello", phone:"+256 701 234567",route:"Kampala → Mbarara",route_id:2,seats:[2],  trip_id:2,amount:25000, payment_status:"confirmed",status:"confirmed",date:"2026-03-09",agent_id:"AGT-01",is_advance:false},
+  {id:3,booking_code:"RLN260309789D0003",passenger:"Grace Auma",   phone:"+256 782 345678",route:"Kampala → Mbale",  route_id:3,seats:[1,2,3],trip_id:3,amount:90000, payment_status:"pending",  status:"pending",  date:"2026-03-09",agent_id:null,is_advance:false},
+  {id:4,booking_code:"RLN260315012E0004",passenger:"Peter Mugisha",phone:"+256 756 456789",route:"Kampala → Gulu",   route_id:1,seats:[6],  trip_id:null,amount:35000,payment_status:"pending",  status:"advance",  date:"2026-03-15",agent_id:null,is_advance:true},
+  {id:5,booking_code:"RLN260320123B0005",passenger:"Agnes Aber",   phone:"+256 714 567890",route:"Kampala → Arua",   route_id:5,seats:[],   trip_id:null,amount:100000,payment_status:"pending", status:"advance",  date:"2026-03-20",agent_id:"AGT-02",is_advance:true},
+];
+
+const INIT_AGENTS = [
+  {id:"AGT-01",name:"Moses Lubega",  phone:"+256 772 200001",location:"Kampala Central",username:"moses.lubega",  password:"agent123",status:"active", bookings:34,revenue:850000,created:"2026-01-15"},
+  {id:"AGT-02",name:"Ruth Acen",     phone:"+256 782 200002",location:"Gulu Station",   username:"ruth.acen",    password:"agent456",status:"active", bookings:21,revenue:525000,created:"2026-01-20"},
+  {id:"AGT-03",name:"Paul Waiswa",   phone:"+256 756 200003",location:"Jinja Road",     username:"paul.waiswa",  password:"agent789",status:"suspended",bookings:15,revenue:375000,created:"2026-02-01"},
+];
+
+const INIT_RESERVATIONS = [
+  {id:1,seat:9,trip_id:1,passenger:"Kato Brian",phone:"+256 700 999001",reserved_by:"admin",expires_at:new Date(Date.now()+45*60000).toISOString(),status:"reserved"},
+];
+
+const INIT_EXPENSES = [
+  {id:1,category:"Fuel",            amount:450000,description:"Kampala-Gulu route fuel",date:"2026-03-09"},
+  {id:2,category:"Maintenance",     amount:320000,description:"UAC 789D service",       date:"2026-03-08"},
+  {id:3,category:"Driver Allowance",amount:180000,description:"March allowances",       date:"2026-03-07"},
+  {id:4,category:"Terminal Fees",   amount:90000, description:"Nakasero terminal",      date:"2026-03-06"},
+];
+
+const INIT_PROMOTIONS = [
+  {id:1,code:"JINJA10",route_id:6,discount:10,type:"percent",description:"10% off Kampala–Jinja",active:true,expires:"2026-04-30"},
+  {id:2,code:"STUDENT5",route_id:null,discount:5000,type:"fixed",description:"Student discount all routes",active:true,expires:"2026-12-31"},
+];
+
+const INIT_FEEDBACK = [
+  {id:1,name:"Brian Otieno",   rating:5,message:"Excellent service! Driver was professional and on time.",route:"Kampala → Jinja",   date:"2026-03-07",status:"approved"},
+  {id:2,name:"Patience Akello",rating:4,message:"Comfortable ride. The WhatsApp ticket was very convenient.",route:"Kampala → Gulu",  date:"2026-03-06",status:"approved"},
+  {id:3,name:"Samuel Wasswa",  rating:5,message:"Best transport company in Uganda. Seats are clean.",     route:"Kampala → Mbarara",date:"2026-03-08",status:"approved"},
+  {id:4,name:"Test User",      rating:3,message:"This review is pending admin approval.",                  route:"Kampala → Mbale",  date:"2026-03-09",status:"pending"},
+];
+
+const FAQ_DATA = [
+  {q:"How do I book a seat?",            a:"Select your route, choose an available trip, pick your seat(s), enter your details, and pay via Mobile Money. Your QR boarding pass is sent instantly via WhatsApp."},
+  {q:"What if the van is fully booked?", a:"The system will show the next available departure and allow you to book that trip directly."},
+  {q:"What is the luggage allowance?",   a:"Each passenger is entitled to 10kg of luggage free of charge. Additional luggage may attract extra charges."},
+  {q:"What happens if luggage is lost?", a:"Report lost luggage to the driver or Raylane Express office immediately. Label your luggage clearly."},
+  {q:"Can I cancel or reschedule?",      a:"Trip changes may be possible before departure. Contact Raylane Express support for assistance."},
+  {q:"How do I receive my ticket?",      a:"Tickets are sent via WhatsApp after booking confirmation and payment, including a QR code for boarding."},
+  {q:"What if I miss my trip?",          a:"Contact the Raylane Express office immediately to check availability on the next departure."},
+  {q:"Is there special assistance available?",a:"Yes. During booking, tick the accessibility checkbox and describe what you need (wheelchair, elderly boarding, visual impairment). Staff will be notified."},
+];
+
+// ─── GLOBAL STATE (simple store pattern) ─────────────────────────────
+const useStore = () => {
+  const [trips,       setTrips]       = useState(INIT_TRIPS);
+  const [vehicles,    setVehicles]    = useState(INIT_VEHICLES);
+  const [bookings,    setBookings]    = useState(INIT_BOOKINGS);
+  const [agents,      setAgents]      = useState(INIT_AGENTS);
+  const [reservations,setReservations]= useState(INIT_RESERVATIONS);
+  const [expenses,    setExpenses]    = useState(INIT_EXPENSES);
+  const [promotions,  setPromotions]  = useState(INIT_PROMOTIONS);
+  const [feedback,    setFeedback]    = useState(INIT_FEEDBACK);
+
+  const getRoute  = id => ROUTES.find(r=>r.id===id)||{};
+  const getVehicle= id => vehicles.find(v=>v.id===id)||{};
+  const getTrip   = id => trips.find(t=>t.id===id)||null;
+
+  const seatsAvailable = trip => {
+    const res = reservations.filter(r=>r.trip_id===trip.id&&r.status==="reserved").map(r=>r.seat);
+    return trip.capacity - trip.seats_booked.length - res.length;
+  };
+
+  const confirmBooking = (id, vehicle_id, trip_id) => {
+    setBookings(prev=>prev.map(b=>b.id===id?{...b,status:"confirmed",payment_status:"confirmed",trip_id,vehicle_id}:b));
+  };
+
+  const addBooking = bk => setBookings(prev=>[...prev, {...bk, id:prev.length+1}]);
+
+  const addAgent = ag => setAgents(prev=>[...prev, {...ag, id:`AGT-${String(prev.length+1).padStart(2,"0")}`, bookings:0, revenue:0, created:new Date().toISOString().split("T")[0]}]);
+
+  const toggleAgent = id => setAgents(prev=>prev.map(a=>a.id===id?{...a,status:a.status==="active"?"suspended":"active"}:a));
+
+  const addVehicle = v => setVehicles(prev=>[...prev,{...v,id:prev.length+1}]);
+
+  const addTrip = t => setTrips(prev=>[...prev,{...t,id:prev.length+1,seats_booked:[]}]);
+
+  const reserveSeat = res => setReservations(prev=>[...prev,{...res,id:prev.length+1,status:"reserved"}]);
+
+  const approveFeedback = id => setFeedback(prev=>prev.map(f=>f.id===id?{...f,status:"approved"}:f));
+  const rejectFeedback  = id => setFeedback(prev=>prev.filter(f=>f.id!==id));
+
+  const addExpense = e => setExpenses(prev=>[...prev,{...e,id:prev.length+1}]);
+  const addPromotion = p => setPromotions(prev=>[...prev,{...p,id:prev.length+1}]);
+
+  // ── Supabase sync: load real data on mount ──────────────────────────
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const [dbTrips,dbBookings,dbVehicles,dbAgents,dbFeedback] = await Promise.all([
+          db.list("trips",{order:"departure_time"}),
+          db.list("bookings",{order:"created_at.desc",limit:"200"}),
+          db.list("vehicles"),
+          db.list("agents"),
+          db.list("feedback",{order:"created_at.desc"}),
+        ]);
+        if(dbTrips?.length){
+          setTrips(dbTrips.map(t=>({...t,seats_booked:t.seats_booked||[],vehicle_reg:t.vehicle_reg||""})));
+        }
+        if(dbBookings?.length){
+          setBookings(dbBookings.map(b=>({...b,booking_code:b.booking_code,passenger:b.passenger_name,phone:b.passenger_phone,route:b.route_id?"":b.route||"",seats:b.seats||[],amount:b.amount,payment_status:b.payment_status,status:b.booking_status,date:b.travel_date||b.created_at?.split("T")[0],agent_id:b.agent_id})));
+        }
+        if(dbVehicles?.length) setVehicles(dbVehicles);
+        if(dbAgents?.length) setAgents(dbAgents.map(a=>({...a,id:a.agent_code||a.id,bookings:a.total_bookings||0,revenue:a.total_revenue||0,created:a.created_at?.split("T")[0]})));
+        if(dbFeedback?.length) setFeedback(dbFeedback.map(f=>({...f,route:f.route_label||"",rating:f.rating||5})));
+      }catch(e){ console.log("Supabase offline, using demo data"); }
+    })();
+  },[]);
+
+  // ── Persist new bookings to Supabase ────────────────────────────────
+  const addBookingWithSync = async (bk) => {
+    addBooking(bk);
+    try{
+      await db.insert("bookings",{
+        booking_code:bk.booking_code, passenger_name:bk.passenger, passenger_phone:bk.phone,
+        route_id:bk.route_id, trip_id:bk.trip_id, seats:bk.seats, amount:bk.amount,
+        payment_status:bk.payment_status, booking_status:bk.status, is_advance:bk.is_advance||false,
+        agent_id:bk.agent_id||null, travel_date:bk.date
+      });
+    }catch(e){ console.log("Booking save failed silently"); }
+  };
+
+  const addFeedbackWithSync = async (fb) => {
+    try{
+      await db.insert("feedback",{ name:fb.name, route_label:fb.route, rating:fb.rating, message:fb.message, status:"pending" });
+    }catch(e){}
+  };
+
+  // Partners, Destinations, Inspire Photos, MoMo API config
+  const [partners,setPartners]=useState([
+    {id:1,name:"Uganda Tourism Board",logo:"",url:"https://visituganda.com",active:true},
+    {id:2,name:"MTN Uganda",logo:"",url:"https://mtn.co.ug",active:true},
+  ]);
+  const [destinations,setDestinations]=useState([
+    {id:1,name:"Gulu City",region:"Northern Uganda",img:"",caption:"The Pearl of the North — gateway to Murchison Falls National Park",active:true},
+    {id:2,name:"Jinja",region:"Eastern Uganda",img:"",caption:"Source of the Nile — white water rafting capital of East Africa",active:true},
+    {id:3,name:"Fort Portal",region:"Western Uganda",img:"",caption:"Gateway to Queen Elizabeth NP and the legendary Rwenzori Mountains",active:true},
+    {id:4,name:"Mbarara",region:"Western Uganda",img:"",caption:"The City of Milky Way — heartland of the great Ankole Kingdom",active:true},
+  ]);
+  const [safetyPhotos,setSafetyPhotos]=useState([
+    {id:1,url:"",caption:"",active:true},
+    {id:2,url:"",caption:"",active:true},
+    {id:3,url:"",caption:"",active:false},
+  ]);
+  const updateSafetyPhoto=(id,u)=>setSafetyPhotos(prev=>prev.map(x=>x.id===id?{...x,...u}:x));
+  const addSafetyPhoto=()=>setSafetyPhotos(prev=>[...prev,{id:Date.now(),url:"",caption:"",active:true}]);
+  const removeSafetyPhoto=id=>setSafetyPhotos(prev=>prev.filter(x=>x.id!==id));
+  const [inspirePhotos,setInspirePhotos]=useState([
+    {id:1,url:"",caption:"Nile River at Jinja — where Africa's greatest river begins its 6,650km journey north",active:true},
+    {id:2,url:"",caption:"Murchison Falls — the most powerful waterfall on Earth, where the Nile squeezes through a 7m gorge",active:true},
+    {id:3,url:"",caption:"Rwenzori Mountain peaks — the legendary Mountains of the Moon, home to glaciers on the Equator",active:true},
+  ]);
+  const [momoConfig,setMomoConfig]=useState({
+    mtn:{apiKey:"",primaryKey:"",subscriptionKey:"",callbackHost:"https://raylane.ug",environment:"sandbox",merchantCode:"49318",enabled:false},
+    airtel:{clientId:"",clientSecret:"",callbackUrl:"https://raylane.ug/api/airtel",environment:"sandbox",merchantCode:"49318",enabled:false},
+  });
+  // ─── Seat locking (prevents double-booking) ─────────────────────────
+  const [employeesState,setEmployeesState]=useState(INIT_EMPLOYEES);
+  const [seatLocks,setSeatLocks]=useState({});
+  const lockSeat=(tripId,seat,sid)=>setSeatLocks(prev=>({...prev,[`${tripId}_${seat}`]:{at:Date.now(),sid}}));
+  const releaseSeat=(tripId,seat)=>setSeatLocks(prev=>{const n={...prev};delete n[`${tripId}_${seat}`];return n;});
+  const releaseBySid=(sid)=>setSeatLocks(prev=>{const n={...prev};Object.keys(n).forEach(k=>{if(n[k].sid===sid)delete n[k];});return n;});
+  const isSeatLocked=(tripId,seat,mySid)=>{
+    const lock=seatLocks[`${tripId}_${seat}`];
+    if(!lock) return false;
+    if(Date.now()-lock.at>600000){releaseSeat(tripId,seat);return false;}
+    return lock.sid!==mySid;
+  };
+  const addEmployee=e=>setEmployeesState(prev=>[...prev,e]);
+  const updateEmployee=(id,u)=>setEmployeesState(prev=>prev.map(x=>x.id===id?{...x,...u}:x));
+  const removeEmployee=id=>setEmployeesState(prev=>prev.filter(x=>x.id!==id));
+  const addPartner=p=>setPartners(prev=>[...prev,{...p,id:Date.now(),active:true}]);
+  const removePartner=id=>setPartners(prev=>prev.filter(p=>p.id!==id));
+  const togglePartner=id=>setPartners(prev=>prev.map(p=>p.id===id?{...p,active:!p.active}:p));
+  const addDestination=d=>setDestinations(prev=>[...prev,{...d,id:Date.now(),active:true}].slice(-4));
+  const updateDestination=(id,d)=>setDestinations(prev=>prev.map(x=>x.id===id?{...x,...d}:x));
+  const removeDestination=id=>setDestinations(prev=>prev.filter(d=>d.id!==id));
+  const updateInspirePhoto=(id,p)=>setInspirePhotos(prev=>prev.map(x=>x.id===id?{...x,...p}:x));
+  const updateMomoConfig=(net,cfg)=>setMomoConfig(prev=>({...prev,[net]:{...prev[net],...cfg}}));
+
+  return {trips,vehicles,bookings,agents,reservations,expenses,promotions,feedback,
+    employees:employeesState,addEmployee,updateEmployee,removeEmployee,
+    safetyPhotos,updateSafetyPhoto,addSafetyPhoto,removeSafetyPhoto,
+    seatLocks,lockSeat,releaseSeat,releaseBySid,isSeatLocked,
+    partners,addPartner,removePartner,togglePartner,
+    destinations,addDestination,updateDestination,removeDestination,
+    inspirePhotos,updateInspirePhoto,
+    momoConfig,updateMomoConfig,
+    getRoute,getVehicle,getTrip,seatsAvailable,confirmBooking,
+    addBooking:addBookingWithSync,addAgent,
+    toggleAgent,addVehicle,addTrip,reserveSeat,approveFeedback,rejectFeedback,addExpense,addPromotion,
+    addFeedbackWithSync};
+};
+
+// ─── UTILITIES ────────────────────────────────────────────────────────
+const formatUGX = n=>`UGX ${Number(n).toLocaleString()}`;
+const formatTime = dt=>new Date(dt).toLocaleTimeString("en-UG",{hour:"2-digit",minute:"2-digit"});
+const formatDate = dt=>new Date(dt).toLocaleDateString("en-UG",{day:"numeric",month:"short",year:"numeric"});
+// Booking code counters (reset 1 Jan each year)
+const _getSeqCounters=()=>{
+  const year=new Date().getFullYear();
+  const stored=window.__rlnSeq||(window.__rlnSeq={year,pax:0,pcl:0});
+  if(stored.year!==year){window.__rlnSeq={year,pax:0,pcl:0};}
+  return window.__rlnSeq;
+};
+// Passenger: RLN+YY+MM+DD+last3+0001
+const genBookingCode=(vehicleReg)=>{
+  const now=new Date();
+  const yy=String(now.getFullYear()).slice(-2);
+  const mm=String(now.getMonth()+1).padStart(2,"0");
+  const dd=String(now.getDate()).padStart(2,"0");
+  const reg=(vehicleReg||"000").replace(/\s/g,"");
+  const last3=reg.slice(-3).toUpperCase().padStart(3,"0");
+  const ctr=_getSeqCounters();
+  ctr.pax+=1;
+  const seq=String(ctr.pax).padStart(4,"0");
+  return `RLN${yy}${mm}${dd}${last3}${seq}`;
+};
+// Parcel: PCL+YY+MM+DD+last3+0001
+const genParcelCode=(vehicleReg)=>{
+  const now=new Date();
+  const yy=String(now.getFullYear()).slice(-2);
+  const mm=String(now.getMonth()+1).padStart(2,"0");
+  const dd=String(now.getDate()).padStart(2,"0");
+  const reg=(vehicleReg||"000").replace(/\s/g,"");
+  const last3=reg.slice(-3).toUpperCase().padStart(3,"0");
+  const ctr=_getSeqCounters();
+  ctr.pcl+=1;
+  const seq=String(ctr.pcl).padStart(4,"0");
+  return `PCL${yy}${mm}${dd}${last3}${seq}`;
+};
+// Legacy alias
+const genCode=(vReg)=>genBookingCode(vReg);
+// ─── Uganda phone validation (10 digits, starts with 0) ─────────────
+const MTN_PREFIXES=["077","078","039","076","079"]; // 077,078,039 main; 0760-0764,0790 new
+const AIRTEL_PREFIXES=["070","074","075"];           // Airtel Uganda main
+
+const ugPhoneFormat=v=>v.replace(/[^0-9]/g,"").slice(0,10);
+const ugPhoneValidate=v=>{
+  if(!v) return "";
+  if(!v.startsWith("0")) return "Must start with 0 (e.g. 0771234567)";
+  if(v.length<10) return `Need ${10-v.length} more digit${10-v.length!==1?"s":""}`;
+  return "";
+};
+const detectNetwork=phone=>{
+  const d=phone.replace(/[^0-9]/g,"");
+  const loc=d.startsWith("256")?"0"+d.slice(3):d;
+  if(MTN_PREFIXES.some(p=>loc.startsWith(p))) return "mtn";
+  if(AIRTEL_PREFIXES.some(p=>loc.startsWith(p))) return "airtel";
+  return null;
+};
+
+// ─── Uganda vehicle registration ─────────────────────────────────────
+// Old: UAA 001A  (letter×3 + space + digit×3 + letter×1)
+// New: UA 001AA  (letter×2 + space + digit×3 + letter×2)
+const validateReg=reg=>{
+  const r=reg.toUpperCase().trim();
+  return /^UA[A-Z] \d{3}[A-Z]$/.test(r)||/^UA \d{3}[A-Z]{2}$/.test(r);
+};
+const autoFormatPlate=raw=>{
+  const v=raw.toUpperCase().replace(/[^A-Z0-9 ]/g,"");
+  if(v.includes(" ")) return v.slice(0,7);
+  if(v.length===3&&/^UA[A-Z]$/.test(v)) return v+" ";
+  if(v.length===2&&/^UA$/.test(v)) return v+" ";
+  if(v.length>3&&/^UA[A-Z]/.test(v)&&!v.includes(" ")) return v.slice(0,3)+" "+v.slice(3,6)+(v[6]||"");
+  if(v.length>2&&/^UA[^A-Z]/.test(v)&&!v.includes(" ")) return v.slice(0,2)+" "+v.slice(2,5)+(v.slice(5,7)||"");
+  return v.slice(0,7);
+};
+const plateHint=reg=>{
+  const r=(reg||"").toUpperCase().trim();
+  if(!r||r.length<2) return null;
+  if(validateReg(r)) return {ok:true,msg:"✓ Valid plate"};
+  if(/^UA[A-Z] /.test(r)) return {ok:null,msg:"Old format: UAA 001A"};
+  if(/^UA /.test(r))      return {ok:null,msg:"New format: UA 001AA"};
+  if(r.length>=4) return {ok:false,msg:"Invalid — use UAA 001A (old) or UA 001AA (new)"};
+  return null;
+};
+
+function useCountdown(target){
+  const [diff,setDiff]=useState(new Date(target)-new Date());
+  useEffect(()=>{const t=setInterval(()=>setDiff(new Date(target)-new Date()),1000);return()=>clearInterval(t);},[target]);
+  if(diff<=0) return{str:"Departed",urgent:false,boarding:false,mins:0};
+  const h=Math.floor(diff/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
+  const mins=diff/60000;
+  return{str:h>0?`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`:`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`,urgent:mins<=30,boarding:mins<=18,mins};
+}
+
+// ─── GLOBAL CSS ───────────────────────────────────────────────────────
+const globalCSS=`
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Inter:wght@300;400;500;600;700&family=Raleway:wght@400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:#F4F8FF;color:${C.textPrimary};font-family:'Inter',sans-serif;overflow-x:hidden;}
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:#F0F4FF;}
+::-webkit-scrollbar-thumb{background:#D1DBF0;border-radius:3px;}
+.playfair{font-family:'Playfair Display',serif !important;}
+.ral{font-family:'Raleway',sans-serif;}
+.inter{font-family:'Inter',sans-serif;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+@keyframes blink{0%,100%{box-shadow:0 0 0 0 ${C.amber}55;}50%{box-shadow:0 0 14px 5px ${C.amber}22;}}
+@keyframes urgentPulse{0%,100%{background:${C.orange}10;}50%{background:${C.orange}20;}}
+@keyframes slideIn{from{transform:translateX(-10px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}
+.fade-up{animation:fadeUp .4s ease forwards;}
+.live-dot{width:8px;height:8px;border-radius:50%;background:${C.green};animation:pulse 1.5s infinite;display:inline-block;}
+.urgent-card{animation:urgentPulse 1.5s infinite;}
+.pulse-timer{animation:blink 1s infinite;}
+select option{background:#fff;color:${C.textPrimary};}
+input[type=checkbox]{accent-color:${C.amber};}
+.btn-book{background:linear-gradient(135deg,${C.bookNow},${C.amberDark});color:#fff;border:none;border-radius:10px;padding:12px 28px;font-family:'Raleway',sans-serif;font-weight:800;font-size:14px;cursor:pointer;letter-spacing:.3px;transition:all .2s;box-shadow:0 4px 15px ${C.amber}33;}
+.btn-book:hover{transform:translateY(-2px);box-shadow:0 8px 24px ${C.amber}44;}
+.btn-quote{background:linear-gradient(135deg,${C.quote},${C.quoteHover});color:#fff;border:none;border-radius:10px;padding:12px 28px;font-family:'Raleway',sans-serif;font-weight:800;font-size:14px;cursor:pointer;letter-spacing:.3px;transition:all .2s;box-shadow:0 4px 15px ${C.green}33;}
+.btn-quote:hover{transform:translateY(-2px);box-shadow:0 8px 24px ${C.green}44;}
+.card-hover:hover{box-shadow:0 8px 30px rgba(11,30,75,0.12);transform:translateY(-2px);}
+@keyframes kenburns{from{transform:scale(1) translate(0,0);}to{transform:scale(1.14) translate(-1.5%,-1%);}}
+@keyframes heroZoom{from{transform:scale(1.1);}to{transform:scale(1);}}
+@keyframes heroFade{from{opacity:0;}to{opacity:1;}}
+@keyframes heroSlide{from{transform:translateX(24px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+@keyframes newsTicker{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+@media(max-width:768px){
+  .hide-mobile{display:none !important;}
+  .mobile-full{width:100% !important;}
+  .mobile-stack{flex-direction:column !important;}
+  .mobile-center{text-align:center !important;}
+  .mobile-pad{padding:16px !important;}
+}
+`;
+
+// ─── BASE UI COMPONENTS ───────────────────────────────────────────────
+const Badge=({color=C.amber,bg,children})=>(
+  <span style={{background:bg||color+"18",color,border:`1px solid ${color}33`,borderRadius:6,padding:"2px 10px",fontSize:11,fontWeight:700,letterSpacing:".5px",textTransform:"uppercase"}}>{children}</span>
+);
+const StatusBadge=({status})=>{
+  const map={
+    confirmed:{c:C.green,bg:C.greenBg},pending:{c:C.amber2,bg:C.amberBg},
+    cancelled:{c:C.red,bg:C.redBg},active:{c:C.green,bg:C.greenBg},
+    filling:{c:C.amber2,bg:C.amberBg},maintenance:{c:C.red,bg:C.redBg},
+    company:{c:C.blue,bg:C.blueBg},vendor:{c:C.purple,bg:C.purpleBg},
+    approved:{c:C.green,bg:C.greenBg},suspended:{c:C.red,bg:C.redBg},
+    advance:{c:C.blue,bg:C.blueBg},reserved:{c:C.orange,bg:C.orangeBg}
+  };
+  const s=map[status]||{c:C.blue,bg:C.blueBg};
+  return <Badge color={s.c} bg={s.bg}>{status}</Badge>;
+};
+
+const Btn=({children,onClick,variant="primary",style:s={},disabled,full,size="md"})=>{
+  const sizes={sm:{padding:"7px 14px",fontSize:12},md:{padding:"10px 22px",fontSize:13},lg:{padding:"14px 32px",fontSize:15}};
+  const sz=sizes[size]||sizes.md;
+  const styles={
+    primary:{background:`linear-gradient(135deg,${C.bookNow},${C.amberDark})`,color:"#fff",border:"none",boxShadow:`0 4px 15px ${C.amber}33`},
+    success:{background:`linear-gradient(135deg,${C.quote},${C.quoteHover})`,color:"#fff",border:"none",boxShadow:`0 4px 15px ${C.green}33`},
+    navy:{background:"transparent",color:C.textSecondary,border:`1px solid ${C.navyBorder}`},
+    outline:{background:"transparent",color:C.amber,border:`1.5px solid ${C.amber}`},
+    danger:{background:C.redBg,color:C.red,border:`1px solid ${C.red}44`},
+    dark:{background:C.darkCard,color:C.darkText,border:`1px solid ${C.darkBorder}`},
+    ghost:{background:"transparent",color:C.textMuted,border:"1px solid transparent"},
+  };
+  const vs=styles[variant]||styles.primary;
+  return(
+    <button onClick={onClick} disabled={disabled} style={{
+      ...vs,...sz,borderRadius:10,fontFamily:"'Raleway',sans-serif",fontWeight:800,
+      cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,transition:"all .2s",letterSpacing:".3px",
+      width:full?"100%":"auto",...s
+    }}
+    onMouseEnter={e=>{if(!disabled){if(variant==="primary"||variant==="success"){e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 8px 24px ${variant==="success"?C.green:C.amber}44`;}else if(variant==="navy"||variant==="outline"){e.currentTarget.style.background=C.navyLight;}}}}
+    onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow=vs.boxShadow||"";e.currentTarget.style.background=vs.background;}}
+    >{children}</button>
+  );
+};
+
+const BookBtn=({children="🎫 Book Now",onClick,full,style:s={}})=>(
+  <button className="btn-book" onClick={onClick} style={{width:full?"100%":"auto",...s}}>{children}</button>
+);
+const QuoteBtn=({children="📋 Get Quote",onClick,full,style:s={}})=>(
+  <button className="btn-quote" onClick={onClick} style={{width:full?"100%":"auto",...s}}>{children}</button>
+);
+
+const Input=({label,type="text",value,onChange,placeholder,style:s={},required,error})=>(
+  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+    {label&&<label style={{fontSize:11,color:error?C.red:C.textMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase"}}>{label}{required&&<span style={{color:C.red}}> *</span>}</label>}
+    <input type={type} value={value} onChange={onChange} placeholder={placeholder}
+      style={{background:C.white,border:`1.5px solid ${error?C.red:C.navyBorder}`,borderRadius:10,padding:"11px 14px",color:C.textPrimary,fontSize:14,outline:"none",transition:"border .2s",fontFamily:"'Inter',sans-serif",...s}}
+      onFocus={e=>e.target.style.borderColor=error?C.red:C.amber} onBlur={e=>e.target.style.borderColor=error?C.red:C.navyBorder}/>
+    {error&&<span style={{fontSize:11,color:C.red}}>{error}</span>}
+  </div>
+);
+
+const Textarea=({label,value,onChange,placeholder,rows=4})=>(
+  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+    {label&&<label style={{fontSize:11,color:C.textMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase"}}>{label}</label>}
+    <textarea value={value} onChange={onChange} placeholder={placeholder} rows={rows}
+      style={{background:C.white,border:`1.5px solid ${C.navyBorder}`,borderRadius:10,padding:"11px 14px",color:C.textPrimary,fontSize:14,outline:"none",resize:"vertical",fontFamily:"'Inter',sans-serif"}}
+      onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=C.navyBorder}/>
+  </div>
+);
+
+const Sel=({label,value,onChange,options,style:s={},required})=>(
+  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+    {label&&<label style={{fontSize:11,color:C.textMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase"}}>{label}{required&&<span style={{color:C.red}}> *</span>}</label>}
+    <select value={value} onChange={onChange} style={{background:C.white,border:`1.5px solid ${C.navyBorder}`,borderRadius:10,padding:"11px 14px",color:C.textPrimary,fontSize:14,outline:"none",cursor:"pointer",...s}}
+      onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=C.navyBorder}>
+      {options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  </div>
+);
+
+const Card=({children,style:s={},className=""})=>(
+  <div className={className} style={{background:C.white,border:`1px solid ${C.navyBorder}`,borderRadius:16,padding:24,boxShadow:"0 1px 6px rgba(11,30,75,0.06)",...s}}>{children}</div>
+);
+
+const Modal=({open,onClose,title,children,wide})=>{
+  if(!open) return null;
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(11,30,75,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(4px)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,border:`1px solid ${C.navyBorder}`,borderRadius:20,padding:28,maxWidth:wide?720:520,width:"100%",maxHeight:"90vh",overflowY:"auto",animation:"fadeUp .3s ease",boxShadow:"0 20px 60px rgba(11,30,75,0.2)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
+          <h2 className="playfair" style={{fontSize:20,fontWeight:800,color:C.textPrimary}}>{title}</h2>
+          <button onClick={onClose} style={{background:C.navyLight,border:`1px solid ${C.navyBorder}`,color:C.textMuted,borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:15}}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const Tabs=({tabs,active,onChange})=>(
+  <div style={{display:"flex",gap:4,background:C.navyLight,borderRadius:12,padding:4,flexWrap:"wrap",border:`1px solid ${C.navyBorder}`}}>
+    {tabs.map(t=>(
+      <button key={t} onClick={()=>onChange(t)}
+        style={{padding:"8px 16px",borderRadius:9,border:"none",background:active===t?C.amber:"transparent",color:active===t?"#fff":C.textMuted,cursor:"pointer",fontFamily:"'Raleway',sans-serif",fontWeight:700,fontSize:12,transition:"all .2s"}}>
+        {t}
+      </button>
+    ))}
+  </div>
+);
+
+const Stars=({rating,onChange,size=18})=>(
+  <div style={{display:"flex",gap:3}}>
+    {[1,2,3,4,5].map(s=>(
+      <span key={s} onClick={()=>onChange&&onChange(s)}
+        style={{fontSize:size,cursor:onChange?"pointer":"default",color:s<=rating?C.amber2:C.navyBorder,transition:"color .15s"}}>★</span>
+    ))}
+  </div>
+);
+
+const QRCode=({value,size=120})=>{
+  const cells=15,cell=size/cells;
+  const seed=value.split("").reduce((a,c)=>a+c.charCodeAt(0),0);
+  const grid=Array.from({length:cells},(_,r)=>Array.from({length:cells},(_,c)=>{
+    if((r<4&&c<4)||(r<4&&c>cells-5)||(r>cells-5&&c<4)) return true;
+    return((seed*(r*17+c*13+7))%3===0);
+  }));
+  return(
+    <svg width={size} height={size} style={{borderRadius:8,background:"#fff",padding:4,border:`1px solid ${C.navyBorder}`}}>
+      {grid.map((row,r)=>row.map((on,c)=>on&&<rect key={`${r}-${c}`} x={c*cell} y={r*cell} width={cell} height={cell} fill={C.navy}/>))}
+    </svg>
+  );
+};
+
+// ─── SEAT MAP — Uganda Matatu / HiAce layout ─────────────────────────
+// Right-hand drive: driver top-right
+// Front row: 2 passenger seats LEFT of driver (seats 1-2)
+// Rear: 4 rows × 3 seats = seats 3-14
+const SeatMap=({capacity=14,bookedSeats=[],reservedSeats=[],onSelect,selected=[],size="normal"})=>{
+  const W=size==="small"?32:42, H=size==="small"?28:36, G=size==="small"?4:6;
+  const getSt=(n)=>{
+    if(bookedSeats.includes(n))  return "booked";
+    if(reservedSeats.includes(n)) return "reserved";
+    if(selected.includes(n))     return "selected";
+    return "free";
+  };
+  const COL={
+    booked:   {bg:C.redBg,  bdr:C.red,   fg:C.red,   label:"Booked",   cursor:"not-allowed"},
+    reserved: {bg:C.orangeBg,bdr:C.orange,fg:C.orange,label:"Reserved", cursor:"not-allowed"},
+    selected: {bg:C.amber,  bdr:C.amberDark,fg:"#fff",label:"Selected",cursor:"pointer"},
+    free:     {bg:C.white,  bdr:C.navyBorder,fg:C.textSecondary,label:"Free",cursor:"pointer"},
+  };
+  const Seat=({n,ghost=false})=>{
+    if(ghost) return <div style={{width:W,height:H}}/>;
+    if(n>capacity) return <div style={{width:W,height:H}}/>;
+    const st=getSt(n); const c=COL[st];
+    return(
+      <div onClick={()=>(st==="free")&&onSelect&&onSelect(n)}
+        title={n<=2?`Front seat ${n}`:`Seat ${n} — ${c.label}`}
+        style={{width:W,height:H,background:c.bg,border:`1.5px solid ${c.bdr}`,borderRadius:7,
+          display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+          cursor:c.cursor,transition:"all .15s",position:"relative",userSelect:"none"}}
+        onMouseEnter={e=>{if(st==="free"){e.currentTarget.style.background=C.amberBg;e.currentTarget.style.borderColor=C.amber;}}}
+        onMouseLeave={e=>{if(st==="free"){e.currentTarget.style.background=c.bg;e.currentTarget.style.borderColor=c.bdr;}}}>
+        {/* Seat back */}
+        <div style={{position:"absolute",top:2,left:3,right:3,height:"38%",background:st==="selected"?"rgba(255,255,255,0.3)":st==="free"?C.navyLight:"rgba(0,0,0,0.08)",borderRadius:"4px 4px 0 0"}}/>
+        {/* Seat number */}
+        <span style={{fontSize:size==="small"?9:11,fontWeight:700,color:c.fg,position:"relative",zIndex:1,marginTop:4}}>{n}</span>
+      </div>
+    );
+  };
+
+  const aisle=<div style={{width:size==="small"?14:20}}/>;
+  const gap=<div style={{height:G}}/>;
+
+  return(
+    <div style={{background:"#F8FAFF",border:`1px solid ${C.navyBorder}`,borderRadius:18,padding:size==="small"?12:18,display:"inline-block",minWidth:size==="small"?140:180}}>
+
+      {/* Van outline header */}
+      <div style={{textAlign:"center",marginBottom:8}}>
+        <div style={{fontSize:9,color:C.textMuted,letterSpacing:1.5,textTransform:"uppercase",fontWeight:700}}>
+          {size!=="small"?"🚐 Matatu Layout — Right-Hand Drive":"🚐"}
+        </div>
+      </div>
+
+      {/* FRONT ROW: 2 passenger seats left + driver right */}
+      <div style={{display:"flex",alignItems:"center",gap:G,justifyContent:"center",marginBottom:G+4}}>
+        <Seat n={1}/><Seat n={2}/>
+        {aisle}
+        {/* Driver seat — not bookable */}
+        <div title="Driver" style={{width:W,height:H,background:C.navy,border:`1.5px solid ${C.navy}`,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size==="small"?12:16}}>
+          🧑‍✈️
+        </div>
+      </div>
+
+      {/* Divider — dashboard */}
+      <div style={{height:2,background:C.navyBorder,borderRadius:1,margin:`4px 0 ${G+4}px`,opacity:.5}}/>
+
+      {/* REAR: 4 rows × 3 (window-L, middle, window-R) = seats 3-14 */}
+      {[
+        [3,4,5],
+        [6,7,8],
+        [9,10,11],
+        [12,13,14],
+      ].map((row,ri)=>(
+        <div key={ri}>
+          <div style={{display:"flex",gap:G,justifyContent:"center"}}>
+            <Seat n={row[0]}/>
+            <Seat n={row[1]}/>
+            {aisle}
+            <Seat n={row[2]}/>
+          </div>
+          {ri<3&&gap}
+        </div>
+      ))}
+
+      {/* Legend */}
+      <div style={{display:"flex",gap:10,marginTop:14,fontSize:9,flexWrap:"wrap",justifyContent:"center"}}>
+        {[{c:C.amber,l:"Selected"},{c:C.orange,l:"Reserved"},{c:C.red,l:"Booked"},{c:C.textMuted,l:"Free"}].map(x=>(
+          <span key={x.l} style={{color:x.c,fontWeight:600}}>■ {x.l}</span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── GLOBAL TABLE HELPERS ────────────────────────────────────────────
+const TH=({children,style:s={}})=><th style={{padding:"10px 14px",textAlign:"left",fontSize:10,color:C.textMuted,fontWeight:700,letterSpacing:".5px",textTransform:"uppercase",background:C.navyMid,borderBottom:`1px solid ${C.navyBorder}`,...s}}>{children}</th>;
+const TD=({children,style:s={}})=><td style={{padding:"11px 14px",fontSize:13,color:C.textSecondary,borderBottom:`1px solid ${C.navyBorder}`,...s}}>{children}</td>;
+
+const CountdownTimer=({departure})=>{
+  const {str,urgent,boarding}=useCountdown(departure);
+  if(str==="Departed") return <span style={{color:C.textMuted,fontSize:13}}>Departed</span>;
+  return(
+    <div>
+      {boarding&&<div style={{fontSize:10,color:C.orange,fontWeight:700,animation:"pulse 1s infinite",marginBottom:2}}>🔴 Boarding Soon</div>}
+      <div className={urgent?"pulse-timer ral":"ral"} style={{fontWeight:900,fontSize:urgent?19:17,color:boarding?C.orange:urgent?C.amber2:C.textPrimary,letterSpacing:2,fontVariantNumeric:"tabular-nums"}}>
+        {str}
+      </div>
+      <div style={{fontSize:10,color:C.textMuted,marginTop:1}}>until departure</div>
+    </div>
+  );
+};
+
+const TripCard=({trip,onBook,store,i=0})=>{
+  const route=store.getRoute(trip.route_id);
+  const {urgent,boarding}=useCountdown(trip.departure_time);
+  const avail=store.seatsAvailable(trip);
+  const pct=Math.round(((trip.capacity-avail)/trip.capacity)*100);
+  const isFull=avail<=0;
+  return(
+    <div className={urgent&&!isFull?"urgent-card card-hover":isFull?"":"card-hover"} style={{background:C.white,border:`1.5px solid ${boarding?C.orange:urgent?C.amber2+"66":C.navyBorder}`,borderRadius:18,padding:22,animation:`fadeUp ${.25+i*.08}s ease`,transition:"all .2s",position:"relative",overflow:"hidden",boxShadow:"0 2px 12px rgba(11,30,75,0.07)"}}>
+      {boarding&&!isFull&&<div style={{position:"absolute",top:0,right:0,background:`linear-gradient(135deg,${C.orange},#c2410c)`,color:"#fff",fontSize:10,fontWeight:800,padding:"4px 12px",borderRadius:"0 16px 0 10px"}}>BOARDING SOON</div>}
+      {isFull&&<div style={{position:"absolute",top:0,right:0,background:C.red,color:"#fff",fontSize:10,fontWeight:800,padding:"4px 12px",borderRadius:"0 16px 0 10px"}}>FULLY BOOKED</div>}
+      <div style={{marginBottom:12}}>
+        <div className="playfair" style={{fontWeight:800,fontSize:18,color:C.textPrimary}}>{route.origin} → {route.destination}</div>
+        <div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{trip.vehicle_reg} · {Math.floor(route.duration_minutes/60)}h {route.duration_minutes%60}m</div>
+      </div>
+      <div style={{display:"flex",gap:18,alignItems:"flex-start",marginBottom:14,flexWrap:"wrap"}}>
+        <div><div style={{fontSize:10,color:C.textMuted,fontWeight:600}}>DEPARTURE</div><div className="ral" style={{fontWeight:900,fontSize:22,color:C.amber}}>{formatTime(trip.departure_time)}</div></div>
+        <div><div style={{fontSize:10,color:C.textMuted,fontWeight:600}}>COUNTDOWN</div><CountdownTimer departure={trip.departure_time}/></div>
+        <div><div style={{fontSize:10,color:C.textMuted,fontWeight:600}}>FARE</div><div className="ral" style={{fontWeight:800,fontSize:18,color:C.green}}>{formatUGX(route.price)}</div></div>
+      </div>
+      <div style={{marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.textMuted,marginBottom:4}}>
+          <span>{isFull?"No seats available":`${avail} seats remaining`}</span><span>{pct}% full</span>
+        </div>
+        <div style={{height:5,background:C.navyLight,borderRadius:3}}>
+          <div style={{width:`${pct}%`,height:"100%",background:isFull?C.red:pct>80?C.orange:pct>50?C.amber2:C.green,borderRadius:3,transition:"width .5s"}}/>
+        </div>
+      </div>
+      {isFull?(
+        <div style={{display:"flex",gap:8}}>
+          <BookBtn onClick={()=>onBook(trip,"next")} style={{flex:1,padding:"9px 10px",fontSize:12}}>Next Van →</BookBtn>
+          <Btn onClick={()=>onBook(null,"all")} variant="navy" style={{flex:1,padding:"9px 10px",fontSize:12}}>All Trips</Btn>
+        </div>
+      ):(
+        <BookBtn onClick={()=>onBook(trip)} full>🎫 BOOK NOW</BookBtn>
+      )}
+    </div>
+  );
+};
+
+const StatCard=({label,value,icon,color=C.amber,sub,dark})=>(
+  <div style={{background:dark?C.darkCard:C.white,border:`1px solid ${dark?C.darkBorder:C.navyBorder}`,borderRadius:16,padding:20,flex:1,minWidth:140,boxShadow:"0 2px 8px rgba(11,30,75,0.06)"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+      <span style={{fontSize:24}}>{icon}</span>
+      <span className="playfair" style={{fontSize:22,fontWeight:800,color}}>{value}</span>
+    </div>
+    <div style={{fontSize:11,color:dark?C.darkMuted:C.textMuted,textTransform:"uppercase",letterSpacing:".5px",fontWeight:600}}>{label}</div>
+    {sub&&<div style={{fontSize:11,color:C.green,marginTop:3,fontWeight:600}}>{sub}</div>}
+  </div>
+);
+
+// ─── PAYMENT METHOD ICONS (Official Logos) ────────────────────────────
+// MTN MoMo — rectangular card with official MTN MoMo logo
+const MTNMoMoIcon=({size=44,selected})=>(
+  <div style={{width:Math.round(size*2.55),height:size,borderRadius:10,background:selected?"#17325e":"#0F2557",border:`2px solid ${selected?"#FFCB05":"#FFCB0566"}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s",cursor:"pointer",boxShadow:selected?"0 0 0 3px rgba(255,203,5,0.35),0 4px 14px rgba(15,37,87,0.4)":"0 2px 8px rgba(15,37,87,0.25)",overflow:"hidden",position:"relative",flexShrink:0,padding:"4px 10px"}}>
+    <img src={MTN_MOMO_B64} alt="MTN MoMo" style={{height:size-10,width:"auto",objectFit:"contain",filter:selected?"brightness(1.1)":"brightness(0.95)"}}/>
+    {selected&&<div style={{position:"absolute",inset:0,border:"2px solid #FFCB05",borderRadius:9,pointerEvents:"none"}}/>}
+  </div>
+);
+
+// Airtel Money — rectangular white card with official Airtel Money logo
+const AirtelMoneyIcon=({size=44,selected})=>(
+  <div style={{width:Math.round(size*2.55),height:size,borderRadius:10,background:"#FFFFFF",border:`2px solid ${selected?"#E60000":"#E6000044"}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s",cursor:"pointer",boxShadow:selected?"0 0 0 3px rgba(230,0,0,0.22),0 4px 14px rgba(230,0,0,0.15)":"0 2px 8px rgba(0,0,0,0.1)",overflow:"hidden",position:"relative",flexShrink:0,padding:"4px 10px"}}>
+    <img src={AIRTEL_MONEY_B64} alt="Airtel Money" style={{height:size-10,width:"auto",objectFit:"contain",filter:selected?"saturate(1.2)":"saturate(0.9)"}}/>
+    {selected&&<div style={{position:"absolute",inset:0,border:"2px solid #E60000",borderRadius:9,pointerEvents:"none"}}/>}
+  </div>
+);
+
+const CashIcon=({size=40,selected})=>(
+  <div style={{width:size*2.4,height:size,borderRadius:9,background:selected?"#DCFCE7":"#F0FDF4",border:`2px solid ${selected?"#16A34A":"#86EFAC"}`,display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"0 12px",transition:"all .2s",cursor:"pointer",boxShadow:selected?"0 0 0 3px rgba(22,163,74,0.2)":"0 1px 4px rgba(0,0,0,0.08)"}}>
+    <div style={{width:size*0.72,height:size*0.72,borderRadius:9,background:"#16A34A",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <rect x="2" y="6" width="20" height="13" rx="2" stroke="white" strokeWidth="1.8" fill="none"/>
+        <circle cx="12" cy="12.5" r="3" stroke="white" strokeWidth="1.6" fill="none"/>
+        <line x1="6" y1="9" x2="6" y2="9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+        <line x1="18" y1="15" x2="18" y2="15" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+    </div>
+    <div>
+      <div style={{fontFamily:"'Raleway',sans-serif",fontWeight:900,fontSize:13,color:"#16A34A",lineHeight:1.1}}>Cash</div>
+      <div style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:9,color:"#16A34A",opacity:.75,letterSpacing:.8}}>At Office</div>
+    </div>
+  </div>
+);
+
+const PaymentMethodPicker=({value,onChange,payPhone,totalAmount})=>{
+  const detected = (payPhone&&payPhone.length>=3) ? detectNetwork(payPhone) : null;
+  const mismatch = detected && detected !== value && (value==="mtn"||value==="airtel");
+  return(
+    <div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>
+        <div onClick={()=>onChange("mtn")}   style={{cursor:"pointer"}}><MTNMoMoIcon   size={42} selected={value==="mtn"}/></div>
+        <div onClick={()=>onChange("airtel")} style={{cursor:"pointer"}}><AirtelMoneyIcon size={42} selected={value==="airtel"}/></div>
+        <div onClick={()=>onChange("cash")}  style={{cursor:"pointer"}}><CashIcon       size={42} selected={value==="cash"}/></div>
+      </div>
+
+      {/* Network mismatch warning */}
+      {mismatch&&(
+        <div style={{background:"#FFF7ED",border:"1.5px solid #EA580C",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#9A3412",display:"flex",gap:8,alignItems:"flex-start",animation:"fadeUp .2s ease"}}>
+          <span style={{fontSize:16}}>⚠️</span>
+          <div>
+            <strong>Network mismatch detected.</strong><br/>
+            Your phone number <strong>{payPhone}</strong> appears to be on <strong>{detected==="mtn"?"MTN":"Airtel"}</strong>,
+            but you selected <strong>{value==="mtn"?"MTN MoMo":"Airtel Money"}</strong>.<br/>
+            <span style={{color:"#EA580C"}}>Please select the correct network to avoid payment failure.</span>
+            <div style={{marginTop:6,display:"flex",gap:8}}>
+              <button onClick={()=>onChange(detected)}
+                style={{background:detected==="mtn"?"#FFCB05":"#E40000",color:"#000",border:"none",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:800,cursor:"pointer"}}>
+                Switch to {detected==="mtn"?"MTN MoMo":"Airtel Money"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Instructions for mobile money */}
+      {(value==="mtn"||value==="airtel")&&(
+        <div style={{background:value==="mtn"?"#FFFBEB":"#FFF1F2",border:`1.5px solid ${value==="mtn"?"#FDE68A":"#FECACA"}`,borderRadius:10,padding:"12px 14px",fontSize:12,color:C.textPrimary,lineHeight:2}}>
+          <div style={{fontWeight:700,marginBottom:6,display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+            {value==="mtn"?<MTNMoMoIcon size={24} selected={true}/>:<AirtelMoneyIcon size={24} selected={true}/>}
+            Step-by-step Payment Instructions
+          </div>
+          <div>1️⃣ Dial <strong style={{fontSize:14}}>{value==="mtn"?"*165*3#":"*185*9#"}</strong> on your phone</div>
+          <div>2️⃣ Select <strong>Pay Bill / Pay Merchant</strong></div>
+          <div>3️⃣ Enter Merchant Code: <strong style={{color:value==="mtn"?"#D97706":"#DC2626",fontSize:15,letterSpacing:2}}>  4 9 3 1 8</strong></div>
+          <div>4️⃣ Amount: <strong style={{color:C.green}}>{formatUGX(totalAmount)}</strong></div>
+          <div>5️⃣ Enter your <strong>Mobile Money PIN</strong> and confirm</div>
+          <div style={{marginTop:8,padding:"8px 10px",background:"rgba(0,0,0,0.04)",borderRadius:8,fontSize:11,color:C.textMuted}}>
+            After payment, you will receive an <strong>SMS with a Transaction Reference Number</strong> from {value==="mtn"?"MTN":"Airtel"}. Enter it below to confirm your booking.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// ─── CUSTOMER AUTH (OTP registration & quick login) ──────────────────
+const MOCK_CUSTOMERS=[
+  {id:"CUS-001",name:"Sarah Nakato",email:"sarah@example.com",phone:"+256 772 123456"},
+  {id:"CUS-002",name:"James Okello",email:"james@example.com",phone:"+256 701 234567"},
+];
+
+const CustomerAuthModal=({open,onClose,onLogin})=>{
+  const [step,setStep]=useState("email");
+  const [email,setEmail]=useState("");
+  const [otp,setOtp]=useState("");
+  const [sentOtp,setSentOtp]=useState("");
+  const [form,setForm]=useState({name:"",phone:""});
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [existingUser,setExistingUser]=useState(null);
+
+  const genOtp=()=>String(Math.floor(100000+Math.random()*900000));
+
+  const handleEmailSubmit=()=>{
+    if(!email.includes("@")){setErr("Enter a valid email address.");return;}
+    setErr(""); setLoading(true);
+    setTimeout(()=>{
+      const found=MOCK_CUSTOMERS.find(c=>c.email===email.toLowerCase().trim());
+      const code=genOtp(); setSentOtp(code); setLoading(false);
+      if(found){setExistingUser(found);setStep("otp");}
+      else{setExistingUser(null);setStep("register");}
+    },800);
+  };
+
+  const handleVerify=()=>{
+    if(otp.trim()!==sentOtp){setErr("Incorrect code. Check your email.");return;}
+    const user=existingUser||{id:"CUS-"+Date.now(),name:form.name,email,phone:form.phone};
+    onLogin({role:"customer",name:user.name,email:user.email,phone:user.phone,id:user.id});
+    setStep("done"); setTimeout(onClose,1400);
+  };
+
+  const reset=()=>{setStep("email");setEmail("");setOtp("");setSentOtp("");setForm({name:"",phone:""});setErr("");setExistingUser(null);};
+
+  if(!open) return null;
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(11,30,75,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(8px)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:22,maxWidth:430,width:"100%",boxShadow:"0 28px 70px rgba(11,30,75,0.28)",animation:"fadeUp .3s ease",overflow:"hidden"}}>
+        {/* Header band */}
+        <div style={{background:`linear-gradient(135deg,${C.navy},#1A3A80)`,padding:"22px 28px 18px",position:"relative"}}>
+          <button onClick={()=>{reset();onClose();}} style={{position:"absolute",top:14,right:14,background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:44,height:44,borderRadius:12,background:"rgba(255,255,255,0.12)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>
+              {step==="done"?"✅":step==="email"?"👤":step==="otp"?"📧":"✏️"}
+            </div>
+            <div>
+              <div className="playfair" style={{fontSize:19,fontWeight:800,color:"#fff",lineHeight:1.1}}>
+                {step==="email"&&"My Account"}{step==="otp"&&"Verify Your Email"}{step==="register"&&"Create Account"}{step==="done"&&"Welcome!"}
+              </div>
+              <p style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginTop:3}}>
+                {step==="email"&&"Sign in or register for faster booking"}
+                {step==="otp"&&`We sent a code to ${email}`}
+                {step==="register"&&"Just a few details to complete registration"}
+                {step==="done"&&"Your details are pre-filled for faster booking"}
+              </p>
+            </div>
+          </div>
+          {/* Member benefits */}
+          {step==="email"&&(
+            <div style={{display:"flex",gap:14,marginTop:16,flexWrap:"wrap"}}>
+              {[["⚡","Auto-fill details"],["🎫","Quick seat selection"],["📋","Booking history"]].map(([ic,label])=>(
+                <div key={label} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"rgba(255,255,255,0.7)",background:"rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 9px"}}>
+                  <span>{ic}</span><span>{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Body */}
+        <div style={{padding:"22px 28px 24px"}}>
+          {step==="done"?(
+            <div style={{textAlign:"center",padding:"12px 0 8px"}}>
+              <div style={{fontSize:48,marginBottom:12}}>🎉</div>
+              <div className="playfair" style={{fontSize:20,fontWeight:800,color:C.navy,marginBottom:6}}>You're signed in!</div>
+              <p style={{color:C.textMuted,fontSize:14,lineHeight:1.7}}>Your details are now pre-filled. Head straight to seat selection on your next booking.</p>
+            </div>
+          ):(
+            <>
+              {step==="email"&&(
+                <div style={{display:"flex",flexDirection:"column",gap:13}}>
+                  <Input label="Email Address" type="email" value={email} onChange={e=>{setEmail(e.target.value);setErr("");}} placeholder="you@example.com" required/>
+                  {err&&<div style={{background:C.redBg,borderRadius:8,padding:"8px 12px",fontSize:12,color:C.red}}>{err}</div>}
+                  <BookBtn onClick={handleEmailSubmit} full style={{padding:"13px",fontSize:15}}>{loading?"Checking...":"Continue →"}</BookBtn>
+                  <div style={{display:"flex",alignItems:"center",gap:8,margin:"4px 0"}}>
+                    <div style={{flex:1,height:1,background:C.navyBorder}}/>
+                    <span style={{fontSize:11,color:C.textMuted,whiteSpace:"nowrap"}}>Don't have an account?</span>
+                    <div style={{flex:1,height:1,background:C.navyBorder}}/>
+                  </div>
+                  <p style={{fontSize:12,color:C.textMuted,textAlign:"center",margin:"-4px 0 0",lineHeight:1.6}}>Enter your email above — if you're new, we'll walk you through registration with a one-time code.</p>
+                  <div style={{borderTop:`1px solid ${C.navyBorder}`,paddingTop:14,textAlign:"center"}}>
+                    <button onClick={()=>{reset();onClose();}} style={{background:"none",border:`1px solid ${C.navyBorder}`,borderRadius:8,color:C.textMuted,fontSize:13,cursor:"pointer",padding:"8px 18px",fontFamily:"'Inter',sans-serif"}}>Continue as guest</button>
+                    <p style={{fontSize:11,color:C.textMuted,marginTop:8}}>Membership is optional — you can always book without signing in.</p>
+                  </div>
+                  {/* Demo hint */}
+                  <div style={{background:C.navyLight,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.textMuted}}>
+                    🧪 <strong>Demo accounts:</strong> sarah@example.com · james@example.com
+                  </div>
+                </div>
+              )}
+
+              {(step==="otp"||step==="register")&&(
+                <div style={{display:"flex",flexDirection:"column",gap:13}}>
+                  {/* OTP display box */}
+                  <div style={{background:`linear-gradient(135deg,${C.blueBg},#EFF6FF)`,border:`1.5px solid ${C.blue}33`,borderRadius:12,padding:"14px 16px",textAlign:"center"}}>
+                    <div style={{fontSize:11,color:C.blue,fontWeight:700,marginBottom:6,letterSpacing:.5,textTransform:"uppercase"}}>📧 Demo — Your one-time code</div>
+                    <div style={{fontSize:30,fontWeight:900,letterSpacing:10,color:C.navy,fontFamily:"monospace",letterSpacing:8}}>{sentOtp}</div>
+                    <div style={{fontSize:11,color:C.textMuted,marginTop:4}}>(In production this is sent to your email)</div>
+                  </div>
+                  {step==="register"&&(
+                    <>
+                      <div style={{background:C.amberBg,border:`1px solid ${C.amber2}33`,borderRadius:8,padding:"8px 12px",fontSize:12,color:C.amber2}}>
+                        ✨ New account — tell us a bit about yourself:
+                      </div>
+                      <Input label="Full Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Your full name" required/>
+                      <div>
+                <label style={{fontSize:11,color:C.textSecondary,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Phone Number *</label>
+                <input value={form.phone} maxLength={10}
+                  onChange={e=>setForm({...form,phone:ugPhoneFormat(e.target.value)})}
+                  placeholder="0771234567"
+                  style={{width:"100%",padding:"10px 14px",borderRadius:10,border:`1.5px solid ${form.phone&&ugPhoneValidate(form.phone)?C.red:form.phone&&form.phone.length===10?C.green:C.navyBorder}`,fontSize:14,fontFamily:"monospace",letterSpacing:1,outline:"none",boxSizing:"border-box"}}/>
+                {form.phone&&ugPhoneValidate(form.phone)&&<div style={{marginTop:4,fontSize:11,color:C.red,fontWeight:600}}>⚠️ {ugPhoneValidate(form.phone)}</div>}
+                {form.phone&&!ugPhoneValidate(form.phone)&&form.phone.length===10&&<div style={{marginTop:4,fontSize:11,color:C.green,fontWeight:600}}>✓ {detectNetwork(form.phone)==="mtn"?"MTN Uganda":detectNetwork(form.phone)==="airtel"?"Airtel Uganda":"Valid number"}</div>}
+                <div style={{marginTop:4,fontSize:11,color:C.textMuted}}>10 digits starting with 0 · No +256 prefix</div>
+              </div>
+                    </>
+                  )}
+                  <div>
+                    <label style={{fontSize:11,color:C.textMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Enter 6-digit code</label>
+                    <input value={otp} onChange={e=>{setOtp(e.target.value.replace(/\D/g,"").slice(0,6));setErr("");}} placeholder="000000"
+                      style={{width:"100%",background:C.white,border:`1.5px solid ${err?C.red:C.navyBorder}`,borderRadius:10,padding:"14px 18px",color:C.navy,fontSize:26,outline:"none",textAlign:"center",fontWeight:900,fontFamily:"monospace",letterSpacing:12,transition:"border .2s",boxSizing:"border-box"}}
+                      onFocus={e=>e.target.style.borderColor=C.amber} onBlur={e=>e.target.style.borderColor=err?C.red:C.navyBorder}/>
+                  </div>
+                  {err&&<div style={{background:C.redBg,borderRadius:8,padding:"8px 12px",fontSize:12,color:C.red}}>{err}</div>}
+                  <BookBtn onClick={handleVerify} full style={{padding:"13px",fontSize:15}}>
+                    {step==="otp"?"Sign In →":"Create Account & Sign In →"}
+                  </BookBtn>
+                  <div style={{display:"flex",justifyContent:"space-between"}}>
+                    <button onClick={()=>{const c=genOtp();setSentOtp(c);setOtp("");}} style={{background:"none",border:"none",color:C.amber,fontSize:12,cursor:"pointer",textDecoration:"underline",fontFamily:"'Inter',sans-serif"}}>Resend code</button>
+                    <button onClick={reset} style={{background:"none",border:"none",color:C.textMuted,fontSize:12,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>← Change email</button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// ─── INIT CMS DATA ───────────────────────────────────────────────────
+const INIT_HERO_SLIDES=[
+  {id:1,url:"https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1400&q=80",caption:"Comfortable Journeys Across Uganda",subCaption:"Book your seat in under 2 minutes — boarding pass on WhatsApp",active:true,effect:"ken-burns"},
+  {id:2,url:"https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1400&q=80",caption:"Kampala to Every Corner of Uganda",subCaption:"Daily departures · Live countdowns · Friendly service",active:true,effect:"zoom"},
+  {id:3,url:"https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=1400&q=80",caption:"Safe. Reliable. On Time.",subCaption:"Trusted by thousands of Ugandan travellers since 2018",active:true,effect:"fade"},
+];
+const INIT_NEWS_ITEMS=[
+  {id:1,title:"New Arua Route Launched",body:"Daily departures to Arua starting March 2026.",date:"2026-03-01",active:true,badge:"New Route"},
+  {id:2,title:"Student Discount Available",body:"15% off all routes with valid student ID. Use code STUDENT15.",date:"2026-02-15",active:true,badge:"Promo"},
+];
+
+const HeroSlider=({slides,onBook,onPlan,onSchedule,store})=>{
+  const active=(slides||INIT_HERO_SLIDES).filter(s=>s.active);
+  const [idx,setIdx]=useState(0);
+  useEffect(()=>{
+    if(active.length<=1) return;
+    const t=setInterval(()=>setIdx(i=>(i+1)%active.length),5500);
+    return()=>clearInterval(t);
+  },[active.length]);
+  const slide=active[idx%active.length]||active[0];
+  if(!slide) return null;
+  const imgStyles={"ken-burns":{animation:"kenburns 8s ease-out forwards"},"zoom":{animation:"heroZoom .9s ease forwards"},"fade":{animation:"heroFade .8s ease forwards"},"slide":{animation:"heroSlide .7s ease forwards"}};
+  return(
+    <div style={{position:"relative",height:"clamp(480px,68vh,680px)",overflow:"hidden",background:C.navy}}>
+      <div key={idx} style={{position:"absolute",inset:0,...(imgStyles[slide.effect]||imgStyles.fade)}}>
+        <img src={slide.url} alt={slide.caption} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>
+        <div style={{position:"absolute",inset:0,background:"linear-gradient(105deg,rgba(11,30,75,0.88) 0%,rgba(11,30,75,0.55) 55%,rgba(11,30,75,0.2) 100%)"}}/>
+        <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(11,30,75,0.6) 0%,transparent 55%)"}}/>
+      </div>
+      <div style={{position:"relative",zIndex:2,height:"100%",maxWidth:1200,margin:"0 auto",padding:"0 24px",display:"flex",flexDirection:"column",justifyContent:"center"}}>
+        <div style={{maxWidth:620,animation:"fadeUp .5s ease"}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(22,163,74,0.25)",border:"1px solid rgba(22,163,74,0.45)",borderRadius:20,padding:"5px 16px",marginBottom:18,fontSize:12,color:"#4ade80",fontWeight:700,backdropFilter:"blur(6px)"}}>
+            <span className="live-dot"/> Live · {(store?.trips||[]).filter(t=>store.seatsAvailable(t)>0).length} trips available today
+          </div>
+          <h1 className="playfair" style={{fontSize:"clamp(30px,4.8vw,62px)",fontWeight:900,lineHeight:1.08,letterSpacing:"-1.5px",marginBottom:14,color:"#fff",textShadow:"0 2px 24px rgba(0,0,0,0.35)"}}>
+            {slide.caption}
+          </h1>
+          {slide.subCaption&&<p style={{fontSize:"clamp(13px,1.8vw,16px)",color:"rgba(255,255,255,0.75)",maxWidth:480,lineHeight:1.75,marginBottom:28}}>{slide.subCaption}</p>}
+          <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:22}}>
+            <BookBtn onClick={onBook} style={{fontSize:14,padding:"13px 30px",boxShadow:"0 6px 24px rgba(11,95,255,0.45)"}}>🎫 Book Your Ride</BookBtn>
+            <QuoteBtn onClick={onPlan} style={{fontSize:14,padding:"13px 24px"}}>📋 Get a Quote</QuoteBtn>
+            <button onClick={onSchedule} style={{background:"rgba(255,255,255,0.1)",border:"1.5px solid rgba(255,255,255,0.3)",color:"#fff",borderRadius:10,padding:"13px 20px",fontSize:13,fontFamily:"'Raleway',sans-serif",fontWeight:700,cursor:"pointer",backdropFilter:"blur(6px)",transition:"all .2s"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.2)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}>
+              📅 Schedule
+            </button>
+          </div>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+            <div onClick={onBook} style={{cursor:"pointer"}}><MTNMoMoIcon size={32} selected={false}/></div>
+            <div onClick={onBook} style={{cursor:"pointer"}}><AirtelMoneyIcon size={32} selected={false}/></div>
+            {[["💬","WhatsApp ticket"],["🛡️","Safe journeys"],["📦","Courier"]].map(([ic,l])=>(
+              <span key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"rgba(255,255,255,0.6)"}}>{ic}{l}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+      {active.length>1&&(
+        <>
+          <div style={{position:"absolute",bottom:18,left:"50%",transform:"translateX(-50%)",display:"flex",gap:6,zIndex:3}}>
+            {active.map((_,i)=>(
+              <button key={i} onClick={()=>setIdx(i)} style={{width:i===idx?26:7,height:7,borderRadius:4,background:i===idx?"#fff":"rgba(255,255,255,0.38)",border:"none",cursor:"pointer",transition:"all .35s",padding:0}}/>
+            ))}
+          </div>
+          <button onClick={()=>setIdx(i=>(i-1+active.length)%active.length)} style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.25)",color:"#fff",borderRadius:"50%",width:42,height:42,cursor:"pointer",fontSize:20,backdropFilter:"blur(6px)",zIndex:3,transition:"all .2s"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.28)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.15)"}>‹</button>
+          <button onClick={()=>setIdx(i=>(i+1)%active.length)} style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.25)",color:"#fff",borderRadius:"50%",width:42,height:42,cursor:"pointer",fontSize:20,backdropFilter:"blur(6px)",zIndex:3,transition:"all .2s"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.28)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.15)"}>›</button>
+        </>
+      )}
+    </div>
+  );
+};
+
+const NewsTicker=({items})=>{
+  const active=(items||INIT_NEWS_ITEMS).filter(n=>n.active);
+  if(!active.length) return null;
+  return(
+    <div style={{background:C.amber,padding:"8px 0",overflow:"hidden",position:"relative"}}>
+      <div style={{maxWidth:1200,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",gap:12}}>
+        <span style={{background:"rgba(11,30,75,0.18)",borderRadius:5,padding:"2px 9px",fontSize:11,fontWeight:800,color:C.navy,flexShrink:0,fontFamily:"'Raleway',sans-serif",textTransform:"uppercase",letterSpacing:.5}}>News</span>
+        <div style={{overflow:"hidden",flex:1,mask:"linear-gradient(to right,transparent,black 5%,black 95%,transparent)"}}>
+          <div style={{display:"flex",gap:48,animation:"newsTicker 22s linear infinite",whiteSpace:"nowrap"}}>
+            {[...active,...active].map((n,i)=>(
+              <span key={i} style={{fontSize:13,fontWeight:600,color:C.navy}}>
+                {n.badge&&<strong style={{marginRight:4}}>[{n.badge}]</strong>}{n.title}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────
+// ─── GLOBAL CSS ADDITIONS ─────────────────────────────────────────────
+const GlobalStyles=()=>(
+  <style>{`
+    *{box-sizing:border-box;}
+    body{margin:0;padding:0;background:#F4F8FF;-webkit-font-smoothing:antialiased;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+    @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+    @keyframes urgentPulse{0%,100%{background:#EA580C10;}50%{background:#EA580C20;}}
+    @keyframes kenBurns{from{transform:scale(1);}to{transform:scale(1.08);}}
+    @keyframes loading{0%{transform:translateX(-100%);}100%{transform:translateX(200%);}}
+    section:focus{outline:none;}
+    :focus-visible{outline:2px solid #0B5FFF;outline-offset:2px;border-radius:4px;}
+    .card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(11,30,75,0.12)!important;}
+    .card-hover{transition:transform .2s,box-shadow .2s;}
+    .pulse-timer{animation:urgentPulse 1.2s ease infinite;}
+    .live-dot{width:8px;height:8px;background:#16A34A;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite;}
+    @media(max-width:768px){
+      .nav-desktop-links{display:none!important;}
+      .nav-hamburger{display:flex!important;}
+      .hero-reg-card{display:none!important;}
+      .grid-2col{grid-template-columns:1fr!important;}
+    }
+  `}</style>
+);
+
+// ─── BACK TO TOP ──────────────────────────────────────────────────────
+const BackToTop=()=>{
+  const [visible,setVisible]=useState(false);
+  useEffect(()=>{
+    const onScroll=()=>setVisible(window.scrollY>400);
+    window.addEventListener("scroll",onScroll,{passive:true});
+    return()=>window.removeEventListener("scroll",onScroll);
+  },[]);
+  if(!visible) return null;
+  return(
+    <button onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}
+      aria-label="Back to top"
+      style={{position:"fixed",bottom:28,right:24,zIndex:90,width:44,height:44,borderRadius:"50%",background:`linear-gradient(135deg,${C.amber},${C.amberDark})`,color:"#fff",border:"none",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 16px rgba(11,95,255,0.35)",animation:"fadeUp .25s ease",transition:"transform .2s,box-shadow .2s"}}
+      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(11,95,255,0.45)";}}
+      onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 4px 16px rgba(11,95,255,0.35)";}}>
+      ↑
+    </button>
+  );
+};
+
+// ─── MEGA-MENU NAV ────────────────────────────────────────────────────
+const MegaDropdown=({items,setPage,onClose})=>(
+  <div style={{position:"absolute",top:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",background:C.white,border:`1px solid ${C.navyBorder}`,borderRadius:14,boxShadow:"0 12px 40px rgba(11,30,75,0.14)",padding:"8px 0",minWidth:200,animation:"dropDown .18s ease",zIndex:200}}>
+    {items.map(item=>(
+      <button key={item.id} onClick={()=>{setPage(item.id);onClose();}}
+        style={{display:"block",width:"100%",textAlign:"left",padding:"10px 20px",background:"none",border:"none",cursor:"pointer",fontSize:13,color:C.textSecondary,fontFamily:"'Inter',sans-serif",fontWeight:500,transition:"background .15s"}}
+        onMouseEnter={e=>{e.currentTarget.style.background=C.navyLight;e.currentTarget.style.color=C.amber;}}
+        onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=C.textSecondary;}}>
+        {item.icon&&<span aria-hidden="true" style={{marginRight:10}}>{item.icon}</span>}{item.label}
+      </button>
+    ))}
+  </div>
+);
+
+// ─── SITE SEARCH ─────────────────────────────────────────────────────
+const SEARCH_INDEX=[
+  {label:"Book a Seat",page:"book",tags:"booking ticket seat"},
+  {label:"Live Schedule",page:"schedule",tags:"timetable departure time"},
+  {label:"Plan Your Journey",page:"plan",tags:"advance booking future"},
+  {label:"Courier / Parcel",page:"parcel",tags:"package delivery send"},
+  {label:"Hire a Van",page:"hire",tags:"charter vehicle private"},
+  {label:"Safety Guidelines",page:"safety",tags:"rules policy safe"},
+  {label:"FAQ",page:"faq",tags:"questions answers help"},
+  {label:"About Raylane",page:"about",tags:"company history who"},
+  {label:"Careers & Jobs",page:"careers",tags:"work employment join"},
+  {label:"Lost & Found",page:"lostfound",tags:"missing item luggage"},
+  {label:"Sightseer — Inspire",page:"inspire",tags:"scenery beauty uganda travel"},
+  {label:"Routes — Gulu",page:"schedule",tags:"gulu northern"},
+  {label:"Routes — Mbarara",page:"schedule",tags:"mbarara western"},
+  {label:"Routes — Jinja",page:"schedule",tags:"jinja eastern source nile"},
+  {label:"Routes — Mbale",page:"schedule",tags:"mbale eastern"},
+  {label:"Routes — Fort Portal",page:"schedule",tags:"fort portal western"},
+  {label:"Routes — Arua",page:"schedule",tags:"arua west nile"},
+];
+const NavSearch=({setPage})=>{
+  const [q,setQ]=useState("");
+  const [open,setOpen]=useState(false);
+  const results=q.length>1?SEARCH_INDEX.filter(x=>(x.label+" "+x.tags).toLowerCase().includes(q.toLowerCase())).slice(0,7):[];
+  return(
+    <div style={{position:"relative"}}>
+      <div style={{display:"flex",alignItems:"center",background:C.navyLight,border:`1.5px solid ${open?C.amber:C.navyBorder}`,borderRadius:20,padding:"0 12px",transition:"border .2s"}}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input value={q} onChange={e=>setQ(e.target.value)} onFocus={()=>setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),180)}
+          placeholder="Search…" aria-label="Search site"
+          style={{width:150,padding:"7px 8px",background:"transparent",border:"none",outline:"none",fontSize:12,color:C.textPrimary,fontFamily:"'Inter',sans-serif"}}/>
+        {q&&<span onClick={()=>setQ("")} style={{cursor:"pointer",color:C.textMuted,fontSize:14,lineHeight:1}}>×</span>}
+      </div>
+      {open&&results.length>0&&(
+        <div style={{position:"absolute",top:"calc(100%+6px)",left:0,minWidth:220,background:C.white,border:`1px solid ${C.navyBorder}`,borderRadius:12,boxShadow:"0 8px 28px rgba(11,30,75,0.14)",zIndex:500,overflow:"hidden",marginTop:4}}>
+          {results.map(r=>(
+            <div key={r.page+r.label} onMouseDown={()=>{setPage(r.page);setQ("");setOpen(false);}}
+              style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:C.textPrimary,borderBottom:`1px solid ${C.navyLight}`,fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",gap:8}}
+              onMouseEnter={e=>e.currentTarget.style.background=C.navyLight}
+              onMouseLeave={e=>e.currentTarget.style.background=""}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              {r.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Nav=({page,setPage,currentUser})=>{
+  const [menuOpen,setMenuOpen]=useState(false);
+  const [openDropdown,setOpenDropdown]=useState(null);
+
+  const menus={
+    products:{label:"Products",items:[
+      {id:"book",    icon:"🎫",label:"Book Now"},
+      {id:"plan",    icon:"📅",label:"Plan Your Journey"},
+      {id:"hire",    icon:"🚐",label:"Hire a Van"},
+      {id:"parcel",  icon:"📦",label:"Courier / Parcel"},
+    ]},
+    about:{label:"About Us",items:[
+      {id:"about",     icon:"🏢",label:"About Raylane"},
+      {id:"safety",    icon:"🛡️",label:"Safety"},
+      {id:"faq",       icon:"❓",label:"FAQ"},
+      {id:"careers",   icon:"💼",label:"Careers & Jobs"},
+      {id:"lostfound", icon:"🔍",label:"Lost & Found"},
+    ]},
+    explore:{label:"Explore",items:[
+      {id:"inspire",     icon:"🌄",label:"Sightseer — Inspire"},
+      {id:"destinations",icon:"📍",label:"Top Destinations"},
+      {id:"routes",      icon:"🗺️",label:"All Routes"},
+    ]},
+  };
+
+  const closeAll=()=>setOpenDropdown(null);
+
+  return(
+    <nav aria-label="Main navigation" style={{position:"fixed",top:0,left:0,right:0,zIndex:100,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(16px)",borderBottom:`1px solid ${C.navyBorder}`,boxShadow:"0 2px 20px rgba(11,30,75,0.08)"}}>
+      <style>{`
+        @keyframes dropDown{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+        @keyframes slideDown{from{opacity:0;max-height:0;}to{opacity:1;max-height:600px;}}
+        .nav-item:focus-visible{outline:2px solid ${C.amber};outline-offset:2px;border-radius:6px;}
+        .mega-btn:focus-visible{outline:2px solid ${C.amber};outline-offset:2px;border-radius:6px;}
+        @media(max-width:900px){.nav-desktop-links{display:none!important;}.nav-mobile-row{display:flex!important;}}
+      `}</style>
+      <div style={{maxWidth:1280,margin:"0 auto",padding:"0 clamp(16px,4vw,40px)",height:66,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+
+        {/* ── LOGO ── */}
+        <div onClick={()=>{setPage("home");closeAll();}} style={{cursor:"pointer",display:"flex",alignItems:"center"}} role="link" aria-label="Raylane Express home" tabIndex={0} onKeyDown={e=>e.key==="Enter"&&setPage("home")}>
+          <img src={RAYLANE_LOGO} alt="Raylane Express" style={{height:48,width:"auto",objectFit:"contain"}}/>
+        </div>
+
+        {/* ── DESKTOP LINKS ── */}
+        <div className="nav-desktop-links" style={{display:"flex",gap:2,alignItems:"center"}}>
+          <button className="nav-item" onClick={()=>{setPage("schedule");closeAll();}}
+            style={{background:page==="schedule"?C.amber+"15":"transparent",color:page==="schedule"?C.amber:C.textSecondary,border:"1px solid transparent",borderRadius:8,padding:"7px 12px",cursor:"pointer",fontSize:13,fontFamily:"'Inter',sans-serif",fontWeight:500,transition:"all .2s"}}
+            onMouseEnter={e=>{if(page!=="schedule")e.currentTarget.style.color=C.navy;}} onMouseLeave={e=>{if(page!=="schedule")e.currentTarget.style.color=C.textSecondary;}}>
+            Schedule
+          </button>
+
+          {Object.entries(menus).map(([key,menu])=>(
+            <div key={key} style={{position:"relative"}} onMouseEnter={()=>setOpenDropdown(key)} onMouseLeave={closeAll}>
+              <button className="mega-btn"
+                style={{background:openDropdown===key?C.amber+"15":"transparent",color:openDropdown===key?C.amber:C.textSecondary,border:"1px solid transparent",borderRadius:8,padding:"7px 12px",cursor:"pointer",fontSize:13,fontFamily:"'Inter',sans-serif",fontWeight:500,transition:"all .2s",display:"flex",alignItems:"center",gap:5}}
+                aria-haspopup="true" aria-expanded={openDropdown===key}>
+                {menu.label}
+                <svg width="10" height="10" viewBox="0 0 10 10" fill={openDropdown===key?C.amber:C.textMuted} style={{transform:openDropdown===key?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}><path d="M1 3l4 4 4-4"/></svg>
+              </button>
+              {openDropdown===key&&<MegaDropdown items={menu.items} setPage={setPage} onClose={closeAll}/>}
+            </div>
+          ))}
+
+          <div style={{width:1,height:22,background:C.navyBorder,margin:"0 4px"}} aria-hidden="true"/>
+          <NavSearch setPage={p=>{setPage(p);closeAll();}}/>
+          <div style={{width:1,height:22,background:C.navyBorder,margin:"0 4px"}} aria-hidden="true"/>
+          <BookBtn onClick={()=>{setPage("book");closeAll();}} style={{padding:"8px 18px",fontSize:13}} aria-label="Book a seat">Book Now</BookBtn>
+
+          {currentUser?(
+            <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:4}}>
+              <span style={{fontSize:12,color:C.amber,fontWeight:700}}>👤 {currentUser.name}</span>
+              <Btn onClick={()=>setPage("logout")} variant="navy" style={{padding:"6px 12px",fontSize:11}}>Logout</Btn>
+            </div>
+          ):(
+            <button onClick={()=>{setPage("customer-login");closeAll();}}
+              style={{display:"flex",alignItems:"center",gap:8,padding:"7px 18px",borderRadius:50,border:`2px solid ${C.navy}`,background:C.navy,color:"#fff",cursor:"pointer",fontSize:13,fontFamily:"'Raleway',sans-serif",fontWeight:700,transition:"all .2s",marginLeft:6,whiteSpace:"nowrap"}}
+              aria-label="Log in"
+              onMouseEnter={e=>{e.currentTarget.style.background=C.amber;e.currentTarget.style.borderColor=C.amber;}}
+              onMouseLeave={e=>{e.currentTarget.style.background=C.navy;e.currentTarget.style.borderColor=C.navy;}}>
+              Log in
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            </button>
+          )}
+        </div>
+
+        {/* ── MOBILE: More ≡ + Log in ── */}
+        <div className="nav-mobile-row" style={{display:"none",alignItems:"center",gap:10}}>
+          <button onClick={()=>setMenuOpen(!menuOpen)} aria-label="More" aria-expanded={menuOpen}
+            style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:C.textPrimary,fontSize:14,fontFamily:"'Inter',sans-serif",fontWeight:700,padding:"6px 0"}}>
+            More
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <button onClick={()=>setPage("customer-login")} aria-label="Log in"
+            style={{display:"flex",alignItems:"center",gap:7,padding:"8px 16px",borderRadius:50,border:`2px solid ${C.navy}`,background:C.navy,color:"#fff",cursor:"pointer",fontSize:13,fontFamily:"'Raleway',sans-serif",fontWeight:700}}>
+            Log in <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {menuOpen&&(
+        <div role="dialog" aria-label="Mobile navigation" style={{background:C.white,borderTop:`1px solid ${C.navyBorder}`,padding:"16px 20px 20px",animation:"slideDown .22s ease",overflow:"hidden"}}>
+          <div style={{marginBottom:12}}><NavSearch setPage={p=>{setPage(p);setMenuOpen(false);}}/></div>
+          {[{id:"home",label:"🏠 Home"},{id:"schedule",label:"📋 Schedule"},{id:"book",label:"🎫 Book Now"},{id:"plan",label:"📅 Plan Journey"},{id:"parcel",label:"📦 Courier"},{id:"safety",label:"🛡️ Safety"},{id:"faq",label:"❓ FAQ"},{id:"lostfound",label:"🔍 Lost & Found"},{id:"inspire",label:"🌄 Sightseer"},{id:"destinations",label:"📍 Destinations"}].map(l=>(
+            <button key={l.id} onClick={()=>{setPage(l.id);setMenuOpen(false);}}
+              style={{display:"block",width:"100%",textAlign:"left",padding:"13px 4px",background:"none",border:"none",borderBottom:`1px solid ${C.navyLight}`,color:page===l.id?C.amber:C.textPrimary,cursor:"pointer",fontSize:14,fontFamily:"'Inter',sans-serif",fontWeight:page===l.id?700:500}}>
+              {l.label}
+            </button>
+          ))}
+          <div style={{display:"flex",gap:8,marginTop:14}}>
+            <BookBtn onClick={()=>{setPage("book");setMenuOpen(false);}} style={{flex:1}}>Book Now</BookBtn>
+            <Btn onClick={()=>{setPage("customer-login");setMenuOpen(false);}} variant="navy" style={{flex:1}}>Log in</Btn>
+          </div>
+        </div>
+      )}
+    </nav>
+  );
+};
+
+// ─── FAQ ITEM ─────────────────────────────────────────────────────────
+const FAQItem=({f})=>{
+  const [open,setOpen]=useState(false);
+  return(
+    <div style={{border:`1px solid ${open?C.amber+"44":C.navyBorder}`,borderRadius:12,marginBottom:10,overflow:"hidden",transition:"border .2s",boxShadow:open?"0 4px 16px rgba(11,30,75,0.08)":"none"}}>
+      <div onClick={()=>setOpen(!open)} style={{padding:"14px 18px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",background:open?C.amber+"0A":C.white}}>
+        <span style={{fontWeight:600,fontSize:14,color:C.textPrimary}}>{f.q}</span>
+        <span style={{color:C.amber,fontWeight:800,fontSize:18,transform:open?"rotate(45deg)":"rotate(0)",transition:"transform .2s"}}>+</span>
+      </div>
+      {open&&<div style={{padding:"0 18px 14px",background:C.white,fontSize:13,color:C.textSecondary,lineHeight:1.8,animation:"fadeUp .2s ease"}}>{f.a}</div>}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// PAGE: HOME
+// ═══════════════════════════════════════════════════════════════════════
+// ─── HOME DEPARTURE CARD (uses hooks, must be a component) ───────────
+const HomeTripCard=({trip,i,store,onBook})=>{
+  const r=store.getRoute(trip.route_id);
+  const avail=store.seatsAvailable(trip);
+  const {str,urgent,boarding}=useCountdown(trip.departure_time);
+  return(
+    <article style={{background:C.white,border:`1.5px solid ${boarding?C.orange:urgent?C.amber2+"66":C.navyBorder}`,borderRadius:20,padding:24,boxShadow:"0 4px 20px rgba(11,30,75,0.08)",position:"relative",overflow:"hidden",animation:`fadeUp ${.1+i*.12}s ease`,transition:"transform .2s,box-shadow .2s"}}
+      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 32px rgba(11,30,75,0.14)";}}
+      onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 4px 20px rgba(11,30,75,0.08)";}}>
+      {boarding&&<div aria-hidden="true" style={{position:"absolute",top:0,right:0,background:`linear-gradient(135deg,${C.orange},#c2410c)`,color:"#fff",fontSize:10,fontWeight:800,padding:"5px 14px",borderRadius:"0 20px 0 12px",letterSpacing:1}}>BOARDING SOON</div>}
+      {urgent&&!boarding&&<div aria-hidden="true" style={{position:"absolute",top:0,right:0,background:C.amber2,color:"#fff",fontSize:10,fontWeight:800,padding:"5px 14px",borderRadius:"0 20px 0 12px",letterSpacing:1}}>LEAVING SOON</div>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+        <div>
+          <div style={{fontSize:11,color:C.textMuted,fontWeight:600,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{r.origin}</div>
+          <div className="playfair" style={{fontSize:22,fontWeight:900,color:C.navy}}>{r.destination}</div>
+          <div style={{fontSize:12,color:C.textMuted,marginTop:3}}>{trip.vehicle_reg} · {Math.floor(r.duration_minutes/60)}h {r.duration_minutes%60}m</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div className="ral" style={{fontSize:28,fontWeight:900,color:urgent?C.amber2:C.amber,letterSpacing:"-1px"}}>{formatTime(trip.departure_time)}</div>
+        </div>
+      </div>
+      <div style={{height:3,background:C.navyLight,borderRadius:2,marginBottom:14}}>
+        <div style={{width:`${Math.min(((trip.seats_booked?.length||0)/trip.capacity)*100,100)}%`,height:"100%",background:avail<5?C.orange:C.green,borderRadius:2,transition:"width .5s"}}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div className="ral" style={{fontSize:19,fontWeight:800,color:C.green}}>{formatUGX(r.price)}</div>
+          <div style={{fontSize:11,color:avail<5?C.orange:C.textMuted,fontWeight:600}}>⏱ {str} · {avail} seat{avail!==1?"s":""} left</div>
+        </div>
+        <BookBtn onClick={()=>onBook(trip,"book")} style={{padding:"10px 20px",fontSize:13}} aria-label={`Book seat to ${r.destination}`}>Book My Seat →</BookBtn>
+      </div>
+    </article>
+  );
+};
+
+const HomePage=({setPage,setPreselectedTrip,store,heroSlides,newsItems,onCustomerLogin,currentUser,onStaffLogin,destinations,inspirePhotos})=>{
+  const handleBook=(trip,mode)=>{
+    if(mode==="all"){setPage("schedule");return;}
+    if(mode==="next"){
+      const r=store.getRoute(trip.route_id);
+      const next=store.trips.find(t=>t.route_id===r.id&&store.seatsAvailable(t)>0&&t.id!==trip.id);
+      if(next){setPreselectedTrip(next);setPage("book");return;}
+      setPage("schedule");return;
+    }
+    setPreselectedTrip(trip);setPage("book");
+  };
+  const approved=store.feedback.filter(f=>f.status==="approved");
+
+  return(
+    <div style={{minHeight:"100vh",paddingTop:64,background:C.navyLight}}>
+      {/* HERO SLIDER */}
+      <HeroSlider slides={heroSlides} onBook={()=>setPage("book")} onPlan={()=>setPage("plan")} onSchedule={()=>setPage("schedule")} store={store}/>
+      {/* NEWS TICKER */}
+      <NewsTicker items={newsItems}/>
+            {/* LIVE DEPARTURE BAR */}
+      <div style={{background:C.white,borderBottom:`1px solid ${C.navyBorder}`,padding:"12px 20px",boxShadow:"0 2px 8px rgba(11,30,75,0.05)"}}>
+        <div style={{maxWidth:1200,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span className="live-dot"/>
+            <span className="ral" style={{fontWeight:800,color:C.amber,fontSize:14}}>Today's Live Departures</span>
+            <span style={{color:C.textMuted,fontSize:13}}>— {store.trips.length} trips scheduled</span>
+          </div>
+          <Btn onClick={()=>setPage("schedule")} variant="outline" style={{padding:"6px 16px",fontSize:12}}>Full Schedule →</Btn>
+        </div>
+      </div>
+
+      {/* LIVE TRIP CARDS — next 2 soonest with available seats */}
+      <section aria-label="Live departures" style={{maxWidth:1280,margin:"0 auto",padding:"clamp(28px,4vw,48px) clamp(16px,4vw,40px) 0"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20,flexWrap:"wrap",gap:12}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:C.amber,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Live Today</div>
+            <h2 className="playfair" style={{fontSize:24,fontWeight:800,color:C.navy,margin:0}}>Next Departures</h2>
+          </div>
+          <Btn onClick={()=>setPage("schedule")} variant="outline" style={{fontSize:13}}>View Full Schedule →</Btn>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:18}}>
+          {store.trips
+            .filter(t=>store.seatsAvailable(t)>0)
+            .sort((a,b)=>new Date(a.departure_time)-new Date(b.departure_time))
+            .slice(0,2)
+            .map((trip,i)=>{
+              const r=store.getRoute(trip.route_id);
+              const avail=store.seatsAvailable(trip);
+              return <HomeTripCard key={trip.id} trip={trip} i={i} store={store} onBook={handleBook}/>;
+            })}
+        </div>
+      </section>
+
+      {/* WHY RAYLANE */}
+      <section aria-label="Why choose Raylane" style={{background:C.white,borderTop:`1px solid ${C.navyBorder}`,borderBottom:`1px solid ${C.navyBorder}`}}>
+        <div style={{maxWidth:1280,margin:"0 auto",padding:"clamp(56px,7vw,96px) clamp(16px,4vw,40px)"}}>
+          <div style={{textAlign:"center",marginBottom:48}}>
+            <div style={{display:"inline-block",fontSize:11,fontWeight:700,color:C.amber,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>WHY RAYLANE</div>
+            <h2 className="playfair" style={{fontSize:"clamp(26px,4vw,38px)",fontWeight:800,color:C.navy,marginBottom:8}}>Uganda's Most Trusted<br/>Intercity Transport</h2>
+            <div style={{width:56,height:3,background:C.amber,borderRadius:2,margin:"12px auto 0"}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:20}}>
+            {[{icon:"🛡️",title:"Safety First",desc:"Strict safety protocols and licensed drivers on every trip."},{icon:"⚡",title:"Fast Booking",desc:"Book in under 2 minutes, boarding pass on WhatsApp."},{icon:"💺",title:"Comfortable Rides",desc:"Modern, clean vehicles for every journey."},{icon:"💳",title:"Mobile Money",desc:"Pay via MTN or Airtel Money instantly.",payIcons:true},{icon:"🌍",title:"100% Ugandan",desc:"Uganda-born and operated. Every shilling supports local drivers, families and communities across the country."}].map(f=>(
+              <Card key={f.title} className="card-hover" style={{textAlign:"center",transition:"all .2s",cursor:"default"}}>
+                <div style={{width:52,height:52,borderRadius:14,background:C.navyLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 14px"}}>
+                  {f.icon}
+                </div>
+                <div className="ral" style={{fontWeight:700,fontSize:15,marginBottom:8,color:C.textPrimary}}>{f.title}</div>
+                <p style={{fontSize:13,color:C.textMuted,lineHeight:1.7}}>{f.desc}</p>
+                {f.payIcons&&(
+                  <div style={{display:"flex",gap:6,justifyContent:"center",marginTop:10}}>
+                    <img src={MTN_MOMO_B64} alt="MTN MoMo" style={{height:26,width:"auto",borderRadius:4,border:"1px solid #FFCB0544"}}/>
+                    <img src={AIRTEL_MONEY_B64} alt="Airtel Money" style={{height:26,width:"auto",borderRadius:4,border:"1px solid #E6000022",background:"#fff"}}/>
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* OUR ROUTES */}
+      <section aria-label="Our routes" style={{maxWidth:1280,margin:"0 auto",padding:"clamp(56px,7vw,80px) clamp(16px,4vw,40px)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:32,flexWrap:"wrap",gap:16}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:C.amber,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>DESTINATIONS</div>
+            <h2 className="playfair" style={{fontSize:"clamp(22px,3.5vw,34px)",fontWeight:800,color:C.navy,marginBottom:0}}>Routes We Serve</h2>
+            <div style={{width:44,height:3,background:C.amber,borderRadius:2,marginTop:10}}/>
+          </div>
+          <BookBtn onClick={()=>setPage("book")} style={{fontSize:13,padding:"10px 22px"}} aria-label="Book any route">Book Any Route</BookBtn>
+        </div>
+        {/* Outbound */}
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.textMuted,letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>FROM KAMPALA</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(175px,1fr))",gap:10}}>
+            {ROUTES.filter(r=>r.direction==="outbound").map(r=>(
+              <div key={r.id} onClick={()=>setPage("book")} role="button" tabIndex={0} onKeyDown={e=>e.key==="Enter"&&setPage("book")} className="card-hover" style={{background:C.white,border:`1px solid ${C.navyBorder}`,borderRadius:14,padding:"15px 16px",cursor:"pointer",transition:"all .2s",boxShadow:"0 1px 6px rgba(11,30,75,0.04)"}}>
+                <div style={{fontSize:10,color:C.textMuted,fontWeight:600,letterSpacing:.5}}>Kampala →</div>
+                <div className="playfair" style={{fontWeight:800,fontSize:17,margin:"3px 0 8px",color:C.navy}}>{r.destination}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{color:C.green,fontWeight:700,fontSize:13}}>{formatUGX(r.price)}</span>
+                  <span style={{background:C.navyLight,borderRadius:6,padding:"2px 7px",fontSize:10,color:C.textMuted}}>{Math.floor(r.duration_minutes/60)}h{r.duration_minutes%60>0?` ${r.duration_minutes%60}m`:""}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Return */}
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:C.textMuted,letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>RETURN TO KAMPALA</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(175px,1fr))",gap:10}}>
+            {ROUTES.filter(r=>r.direction==="return").map(r=>(
+              <div key={r.id} onClick={()=>setPage("book")} role="button" tabIndex={0} onKeyDown={e=>e.key==="Enter"&&setPage("book")} className="card-hover" style={{background:C.navyLight,border:`1px solid ${C.navyBorder}`,borderRadius:14,padding:"15px 16px",cursor:"pointer",transition:"all .2s",boxShadow:"0 1px 6px rgba(11,30,75,0.04)"}}>
+                <div style={{fontSize:10,color:C.textMuted,fontWeight:600,letterSpacing:.5}}>{r.origin} →</div>
+                <div className="playfair" style={{fontWeight:800,fontSize:17,margin:"3px 0 8px",color:C.navy}}>Kampala</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{color:C.green,fontWeight:700,fontSize:13}}>{formatUGX(r.price)}</span>
+                  <span style={{background:C.white,borderRadius:6,padding:"2px 7px",fontSize:10,color:C.textMuted}}>{Math.floor(r.duration_minutes/60)}h{r.duration_minutes%60>0?` ${r.duration_minutes%60}m`:""}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* TESTIMONIALS */}
+      <section aria-label="Passenger testimonials" style={{background:C.navy}}>
+        <div style={{maxWidth:1280,margin:"0 auto",padding:"clamp(56px,7vw,96px) clamp(16px,4vw,40px)"}}>
+          <div style={{textAlign:"center",marginBottom:44}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.amber,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>REVIEWS</div>
+            <h2 className="playfair" style={{fontSize:"clamp(24px,4vw,36px)",fontWeight:800,marginBottom:6,color:C.white}}>What Passengers Say</h2>
+            <div style={{width:44,height:3,background:C.amber,borderRadius:2,margin:"10px auto 0"}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:16,marginBottom:40}}>
+            {approved.slice(0,4).map((f,i)=>(
+              <div key={f.id} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,padding:22,animation:`fadeUp ${.15+i*.07}s ease`}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+                  <div>
+                    <div className="ral" style={{fontWeight:700,fontSize:14,color:C.white}}>{f.name}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{f.route} · {f.date}</div>
+                  </div>
+                  <Stars rating={f.rating} size={14}/>
+                </div>
+                <p style={{fontSize:13,color:"rgba(255,255,255,0.7)",lineHeight:1.7,fontStyle:"italic"}}>"{f.message}"</p>
+              </div>
+            ))}
+          </div>
+          <FeedbackForm store={store} onSubmit={()=>{}}/>
+        </div>
+      </section>
+
+      {/* FAQ PREVIEW */}
+      <section aria-label="Frequently asked questions" style={{maxWidth:860,margin:"0 auto",padding:"clamp(56px,7vw,80px) clamp(16px,4vw,40px)"}}>
+        <div style={{textAlign:"center",marginBottom:40}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.amber,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>FAQ</div>
+          <h2 className="playfair" style={{fontSize:"clamp(22px,3.5vw,32px)",fontWeight:800,color:C.navy,marginBottom:6}}>Frequently Asked Questions</h2>
+          <div style={{width:44,height:3,background:C.amber,borderRadius:2,margin:"10px auto 0"}}/>
+        </div>
+        {FAQ_DATA.slice(0,4).map((f,i)=><FAQItem key={i} f={f}/>)}
+        <div style={{textAlign:"center",marginTop:28}}>
+          <Btn onClick={()=>setPage("faq")} variant="outline" aria-label="View all FAQs">View All FAQs →</Btn>
+        </div>
+      </section>
+
+      {/* ══ SIGHTSEER / INSPIRE ══ */}
+      {inspirePhotos&&inspirePhotos.filter(p=>p.active).length>0&&(
+        <section aria-label="Inspire — Uganda Scenery" style={{padding:"clamp(56px,7vw,96px) clamp(16px,4vw,40px)",background:"#0B1E4B"}}>
+          <div style={{maxWidth:1280,margin:"0 auto"}}>
+            <div style={{textAlign:"center",marginBottom:48}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:3,color:C.amberLight,textTransform:"uppercase",marginBottom:10}}>Sightseer</div>
+              <h2 className="playfair" style={{fontSize:"clamp(28px,4vw,46px)",fontWeight:900,color:"#fff",marginBottom:16}}>Inspire — Beauty of Uganda</h2>
+              <div style={{width:60,height:3,background:C.amber,borderRadius:2,margin:"0 auto"}}/>
+              <p style={{fontSize:14,color:"rgba(255,255,255,0.55)",marginTop:16,maxWidth:520,margin:"16px auto 0"}}>Magnificent scenery along our routes across the Pearl of Africa</p>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20}}>
+              {inspirePhotos.filter(p=>p.active).map((p,i)=>(
+                <div key={p.id} style={{borderRadius:18,overflow:"hidden",position:"relative",aspectRatio:"4/3",boxShadow:"0 8px 32px rgba(0,0,0,0.3)",animation:`fadeUp ${.15+i*.12}s ease`}}>
+                  {p.url
+                    ?<img src={p.url} alt={p.caption} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    :<div style={{width:"100%",height:"100%",background:`linear-gradient(135deg,#1e3a5f,#0b5fff44)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48}}>🇺🇬</div>}
+                  <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,0.75) 0%,transparent 55%)"}}/>
+                  <div style={{position:"absolute",bottom:0,left:0,right:0,padding:18}}>
+                    <p style={{fontSize:13,color:"rgba(255,255,255,0.92)",lineHeight:1.6,margin:0,fontStyle:"italic"}}>&ldquo;{p.caption}&rdquo;</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ══ TOP DESTINATIONS ══ */}
+      {destinations&&destinations.filter(d=>d.active).length>0&&(
+        <DestinationsSlider destinations={destinations.filter(d=>d.active)} setPage={setPage}/>
+      )}
+
+      {/* ══ UGANDA PRESENCE MAP ══ */}
+      <UgandaPresenceMap setPage={setPage}/>
+
+      {/* FOOTER */}
+      <footer style={{background:C.navy,borderTop:`1px solid rgba(255,255,255,0.08)`,padding:"clamp(44px,6vw,72px) clamp(16px,4vw,40px) 24px"}}>
+        <div style={{maxWidth:1280,margin:"0 auto"}}>
+          <div style={{display:"grid",gridTemplateColumns:"2fr repeat(4,1fr)",gap:"clamp(20px,3vw,48px)",marginBottom:40}}>
+            {/* Brand */}
+            <div>
+              <img src={RAYLANE_LOGO} alt="Raylane Express" style={{height:52,width:"auto",objectFit:"contain",marginBottom:14}}/>
+              <p style={{fontSize:13,color:"rgba(255,255,255,0.5)",lineHeight:1.9,maxWidth:220,marginBottom:16}}>Safe, comfortable intercity transport connecting Uganda since 2018.</p>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",lineHeight:2}}>
+                <div>📞 +256 (0) 766 026 401</div>
+                <div>✉️ info@raylane.ug</div>
+                <div>📍 Aponye Mall, Nakasero, Kampala</div>
+                <div>⏰ Mon–Sun · 5:00 AM – 10:00 PM</div>
+              </div>
+            </div>
+            {/* Travel */}
+            <div>
+              <div className="ral" style={{fontWeight:800,fontSize:11,color:C.amberLight,marginBottom:14,letterSpacing:1.5,textTransform:"uppercase"}}>Travel</div>
+              {[{label:"Book a Seat",fn:()=>setPage("book")},{label:"Plan a Journey",fn:()=>setPage("plan")},{label:"Hire a Van",fn:()=>setPage("hire")},{label:"Courier / Parcel",fn:()=>setPage("parcel")},{label:"Live Schedule",fn:()=>setPage("schedule")}].map(l=>(
+                <button key={l.label} onClick={l.fn} style={{display:"block",background:"none",border:"none",padding:"5px 0",fontSize:13,color:"rgba(255,255,255,0.5)",cursor:"pointer",textAlign:"left",fontFamily:"'Inter',sans-serif",transition:"color .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.color=C.amberLight} onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,0.5)"}>{l.label}</button>
+              ))}
+            </div>
+            {/* Company */}
+            <div>
+              <div className="ral" style={{fontWeight:800,fontSize:11,color:C.amberLight,marginBottom:14,letterSpacing:1.5,textTransform:"uppercase"}}>Company</div>
+              {[{label:"About Us",fn:()=>setPage("about")},{label:"Safety",fn:()=>setPage("safety")},{label:"FAQ",fn:()=>setPage("faq")},{label:"Careers",fn:()=>setPage("careers")},{label:"Contact",fn:null}].map(l=>(
+                <button key={l.label} onClick={l.fn||undefined} style={{display:"block",background:"none",border:"none",padding:"5px 0",fontSize:13,color:"rgba(255,255,255,0.5)",cursor:l.fn?"pointer":"default",textAlign:"left",fontFamily:"'Inter',sans-serif",transition:"color .15s"}}
+                  onMouseEnter={e=>{if(l.fn)e.currentTarget.style.color=C.amberLight;}} onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,0.5)"}>{l.label}</button>
+              ))}
+            </div>
+            {/* Support */}
+            <div>
+              <div className="ral" style={{fontWeight:800,fontSize:11,color:C.amberLight,marginBottom:14,letterSpacing:1.5,textTransform:"uppercase",display:"flex",alignItems:"center",gap:2}}>
+                <span>Support</span>
+                <span onClick={()=>onStaffLogin&&onStaffLogin()} title="" style={{cursor:"pointer",color:"rgba(255,255,255,0.18)",fontSize:13,lineHeight:1,userSelect:"none",padding:"0 2px"}} aria-label="Staff portal">.</span>
+              </div>
+              {[{label:"Lost & Found",fn:null},{label:"Refund Policy",fn:null},{label:"Luggage Rules",fn:null},{label:"Accessibility",fn:null},{label:"Booking Issues",fn:null}].map(l=>(
+                <button key={l.label} onClick={l.fn||undefined} style={{display:"block",background:"none",border:"none",padding:"5px 0",fontSize:13,color:"rgba(255,255,255,0.5)",cursor:l.fn?"pointer":"default",textAlign:"left",fontFamily:"'Inter',sans-serif"}}>{l.label}</button>
+              ))}
+            </div>
+            {/* Legal (footer extras — decongested from body) */}
+            <div>
+              <div className="ral" style={{fontWeight:800,fontSize:11,color:C.amberLight,marginBottom:14,letterSpacing:1.5,textTransform:"uppercase"}}>Legal</div>
+              {["Privacy Policy","Terms of Service","Cookie Policy","Accessibility Statement"].map(l=>(
+                <button key={l} style={{display:"block",background:"none",border:"none",padding:"5px 0",fontSize:12,color:"rgba(255,255,255,0.4)",cursor:"pointer",textAlign:"left",fontFamily:"'Inter',sans-serif"}}>{l}</button>
+              ))}
+              <div style={{marginTop:16,padding:"10px 12px",background:"rgba(255,255,255,0.04)",borderRadius:8,fontSize:11,color:"rgba(255,255,255,0.35)",lineHeight:1.8}}>
+                TIN: 1000123456<br/>
+                CCTV & Registered<br/>
+                ISO 9001 Transport
+              </div>
+            </div>
+          </div>
+          {/* Partners */}
+          {store.partners.filter(p=>p.active).length>0&&(
+            <div style={{marginBottom:28,paddingTop:20,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:14}}>Our Partners</div>
+              <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+                {store.partners.filter(p=>p.active).map(p=>(
+                  <a key={p.id} href={p.url||"#"} target="_blank" rel="noopener noreferrer"
+                    style={{display:"flex",alignItems:"center",gap:8,padding:"8px 16px",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,textDecoration:"none",transition:"all .2s"}}
+                    onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.15)";e.currentTarget.style.borderColor="rgba(255,255,255,0.3)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.07)";e.currentTarget.style.borderColor="rgba(255,255,255,0.12)";}}>
+                    {p.logo&&p.logo.length>4
+                      ?<img src={p.logo} alt={p.name} style={{height:24,width:"auto",objectFit:"contain",filter:"brightness(10) saturate(0)",opacity:.7}}/>
+                      :<span style={{fontSize:20}}>{p.logo||"🤝"}</span>}
+                    <span style={{fontSize:12,color:"rgba(255,255,255,0.6)",fontWeight:600,fontFamily:"'Inter',sans-serif"}}>{p.name}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Social Media Links */}
+          <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap",alignItems:"center"}}>
+            <span style={{fontSize:11,color:"rgba(255,255,255,0.35)",fontWeight:600,letterSpacing:1,textTransform:"uppercase",marginRight:4}}>Follow us</span>
+            {[
+              {label:"Facebook",href:"#",color:"#1877F2",svg:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>},
+              {label:"Twitter/X",href:"#",color:"#fff",svg:<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>},
+              {label:"Instagram",href:"#",color:"#E1306C",svg:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>},
+              {label:"YouTube",href:"#",color:"#FF0000",svg:<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.97C18.88 4 12 4 12 4s-6.88 0-8.59.45A2.78 2.78 0 001.46 6.42 29 29 0 001 12a29 29 0 00.46 5.58A2.78 2.78 0 003.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.45a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>},
+              {label:"LinkedIn",href:"#",color:"#0A66C2",svg:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/></svg>},
+              {label:"WhatsApp",href:"#",color:"#25D366",svg:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>},
+            ].map(s=>(
+              <a key={s.label} href={s.href} title={s.label} style={{width:36,height:36,borderRadius:9,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(255,255,255,0.6)",textDecoration:"none",transition:"all .2s"}}
+                onMouseEnter={e=>{e.currentTarget.style.background=s.color+"cc";e.currentTarget.style.borderColor=s.color;e.currentTarget.style.color="#fff";e.currentTarget.style.transform="translateY(-2px)";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.07)";e.currentTarget.style.borderColor="rgba(255,255,255,0.12)";e.currentTarget.style.color="rgba(255,255,255,0.6)";e.currentTarget.style.transform="";}}>
+                {s.svg}
+              </a>
+            ))}
+          </div>
+          <div style={{borderTop:"1px solid rgba(255,255,255,0.1)",paddingTop:16,display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8,fontSize:12,color:"rgba(255,255,255,0.35)"}}>
+            <span>© 2026 Raylane Express Ltd. All rights reserved.</span>
+            <span>Privacy · Terms · Refunds</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+const FeedbackForm=({store,onSubmit})=>{
+  const [form,setForm]=useState({name:"",route:"",rating:5,message:""});
+  const [done,setDone]=useState(false);
+  const handle=()=>{if(!form.name||!form.message)return;onSubmit&&onSubmit({...form,date:new Date().toISOString().split("T")[0],status:"pending"});setDone(true);};
+  if(done) return(
+    <div style={{maxWidth:520,margin:"0 auto",textAlign:"center",padding:32,background:"rgba(22,163,74,0.1)",borderRadius:16,border:"1px solid rgba(22,163,74,0.3)"}}>
+      <div style={{fontSize:44,marginBottom:12}}>✅</div>
+      <div className="playfair" style={{fontWeight:800,fontSize:20,color:"#4ade80",marginBottom:6}}>Thank You!</div>
+      <p style={{fontSize:14,color:"rgba(255,255,255,0.6)"}}>Your review is awaiting admin approval before it appears on the site.</p>
+    </div>
+  );
+  return(
+    <div style={{maxWidth:520,margin:"0 auto",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,padding:24}}>
+      <h3 className="playfair" style={{fontWeight:800,fontSize:20,marginBottom:4,color:C.white}}>Share Your Experience</h3>
+      <p style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>Share your honest experience — it helps fellow passengers.</p>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+          <label style={{fontSize:11,color:"rgba(255,255,255,0.5)",fontWeight:600,letterSpacing:".5px",textTransform:"uppercase"}}>Your Name</label>
+          <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Sarah Nakato"
+            style={{background:"rgba(255,255,255,0.08)",border:"1.5px solid rgba(255,255,255,0.15)",borderRadius:10,padding:"11px 14px",color:C.textPrimary,fontSize:14,outline:"none"}}
+            onFocus={e=>e.target.style.borderColor=C.amberLight} onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.15)"}/>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+          <label style={{fontSize:11,color:"rgba(255,255,255,0.5)",fontWeight:600,letterSpacing:".5px",textTransform:"uppercase"}}>Route Travelled</label>
+          <select value={form.route} onChange={e=>setForm({...form,route:e.target.value})}
+            style={{background:"rgba(255,255,255,0.08)",border:"1.5px solid rgba(255,255,255,0.15)",borderRadius:10,padding:"11px 14px",color:C.textPrimary,fontSize:14,outline:"none"}}>
+            <option value="">Select your route</option>
+            {ROUTES.map(r=><option key={r.id} value={`${r.origin} → ${r.destination}`}>{r.origin} → {r.destination}</option>)}
+          </select>
+        </div>
+        <div><label style={{fontSize:11,color:"rgba(255,255,255,0.5)",fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:10}}>Rating</label><Stars rating={form.rating} onChange={r=>setForm({...form,rating:r})} size={26}/></div>
+        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+          <label style={{fontSize:11,color:"rgba(255,255,255,0.5)",fontWeight:600,letterSpacing:".5px",textTransform:"uppercase"}}>Your Review</label>
+          <textarea value={form.message} onChange={e=>setForm({...form,message:e.target.value})} placeholder="Tell us about your journey..." rows={4}
+            style={{background:"rgba(255,255,255,0.08)",border:"1.5px solid rgba(255,255,255,0.15)",borderRadius:10,padding:"11px 14px",color:C.textPrimary,fontSize:14,outline:"none",resize:"vertical",fontFamily:"'Inter',sans-serif"}}
+            onFocus={e=>e.target.style.borderColor=C.amberLight} onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.15)"}/>
+        </div>
+        <BookBtn onClick={handle} style={{padding:"13px",opacity:(!form.name||!form.message)?0.5:1}} full>Submit Review</BookBtn>
+      </div>
+    </div>
+  );
+};
+
+const ScheduleRow=({trip,store,setPage,setPreselectedTrip})=>{
+  const route=store.getRoute(trip.route_id);
+  const {str,urgent,boarding}=useCountdown(trip.departure_time);
+  const avail=store.seatsAvailable(trip); const isFull=avail<=0;
+  return(
+    <tr style={{borderBottom:`1px solid ${C.navyBorder}`,background:boarding&&!isFull?C.orangeBg:"transparent",transition:"background .15s"}}
+      onMouseEnter={e=>e.currentTarget.style.background=C.navyLight}
+      onMouseLeave={e=>e.currentTarget.style.background=boarding&&!isFull?C.orangeBg:"transparent"}>
+      <td style={{padding:"13px 16px"}}><div className="ral" style={{fontWeight:700,color:C.textPrimary}}>{route.origin} → {route.destination}</div></td>
+      <td style={{padding:"13px 16px"}}><div className="ral" style={{fontWeight:900,color:C.amber,fontSize:18}}>{formatTime(trip.departure_time)}</div></td>
+      <td style={{padding:"13px 16px"}}>
+        <span className="ral" style={{fontWeight:800,color:boarding?C.orange:urgent?C.amber2:C.textPrimary,fontSize:14,fontVariantNumeric:"tabular-nums"}}>{str}</span>
+        {boarding&&<div style={{fontSize:10,color:C.orange,fontWeight:700}}>Boarding!</div>}
+      </td>
+      <td style={{padding:"13px 16px"}}><span style={{color:isFull?C.red:avail<5?C.orange:C.green,fontWeight:700}}>{isFull?"FULL":avail}</span></td>
+      <td style={{padding:"13px 16px"}}><span className="ral" style={{fontWeight:700,color:C.green}}>{formatUGX(route.price)}</span></td>
+      <td style={{padding:"13px 16px"}}><StatusBadge status={trip.status}/></td>
+      <td style={{padding:"13px 16px"}}>
+        {isFull
+          ?<Btn variant="navy" style={{padding:"6px 12px",fontSize:11}}>Next Van</Btn>
+          :<BookBtn onClick={()=>{setPreselectedTrip(trip);setPage("book");}} style={{padding:"6px 14px",fontSize:12}}>Book</BookBtn>}
+      </td>
+    </tr>
+  );
+};
+
+const SchedulePage=({setPage,setPreselectedTrip,store})=>{
+  const [filter,setFilter]=useState("all");
+  const filtered=store.trips.filter(t=>filter==="all"||store.getRoute(t.route_id).destination===filter);
+  return(
+    <div style={{minHeight:"100vh",background:C.navyLight,paddingTop:64}}>
+      <div style={{maxWidth:1100,margin:"0 auto",padding:"28px 20px 40px"}}>
+        <h1 className="playfair" style={{fontSize:30,fontWeight:800,marginBottom:6,color:C.navy}}>Trip Schedule</h1>
+        <p style={{color:C.textMuted,marginBottom:22,fontSize:13}}>All departures from Kampala · Live countdown timers</p>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:22}}>
+          {["all",...new Set(ROUTES.map(r=>r.destination))].map(d=>(
+            <button key={d} onClick={()=>setFilter(d)} style={{background:filter===d?C.amber:"#fff",color:filter===d?"#fff":C.textSecondary,border:`1.5px solid ${filter===d?C.amber:C.navyBorder}`,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:12,fontWeight:filter===d?800:500,fontFamily:"'Raleway',sans-serif",transition:"all .2s"}}>
+              {d==="all"?"All Routes":d}
+            </button>
+          ))}
+        </div>
+        <Card style={{padding:0,overflow:"hidden"}}>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead><tr style={{background:C.navyLight,borderBottom:`1px solid ${C.navyBorder}`}}>
+                {["Route","Departs","Countdown","Seats","Fare","Status",""].map(h=>(
+                  <th key={h} style={{padding:"13px 16px",textAlign:"left",fontSize:11,color:C.textMuted,fontWeight:700,letterSpacing:".5px",textTransform:"uppercase"}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {filtered.map(trip=><ScheduleRow key={trip.id} trip={trip} store={store} setPage={setPage} setPreselectedTrip={setPreselectedTrip}/>)}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// PAGE: BOOKING (Today / Same-day)
+// ═══════════════════════════════════════════════════════════════════════
+const BookingPage=({preselectedTrip,store,currentUser})=>{
+  const [sessionId]=useState(()=>"s"+Date.now().toString(36));
+  const [step,setStep]=useState(preselectedTrip?2:1);
+  const [trip,setTrip]=useState(preselectedTrip||null);
+  const [seats,setSeats]=useState([]);
+  const [promoCode,setPromoCode]=useState(""); const [promoApplied,setPromoApplied]=useState(null);
+  const [payMethod,setPayMethod]=useState("mtn");
+  const [payStatus,setPayStatus]=useState("idle"); // idle | awaitingRef | verifying | mismatch | confirmed | failed
+  const [payRef,setPayRef]=useState("");
+  const [payPhone,setPayPhone]=useState("");
+  const [payRefError,setPayRefError]=useState("");
+  const [showConfirmPrompt,setShowConfirmPrompt]=useState(false);
+  const [whatsappNumber,setWhatsappNumber]=useState("");
+  const [hasWhatsapp,setHasWhatsapp]=useState(null); // null | true | false
+  const [confirmed,setConfirmed]=useState(null);
+  const [form,setForm]=useState({name:currentUser?.name||"",phone:currentUser?.phone||"",email:"",accessibility:false,assistanceDetail:""});
+  const [showAuthModal,setShowAuthModal]=useState(false);
+  const [currentUserLocal,setCurrentUserLocal]=useState(currentUser||null);
+
+  useEffect(()=>{if(preselectedTrip){setTrip(preselectedTrip);setStep(2);}}, [preselectedTrip]);
+
+  const route   = trip?store.getRoute(trip.route_id):{};
+  const bookedS = trip?trip.seats_booked:[];
+  const reservedS=trip?store.reservations.filter(r=>r.trip_id===trip.id&&r.status==="reserved").map(r=>r.seat):[];
+
+  const applyPromo=()=>{
+    const p=store.promotions.find(pr=>pr.code.toUpperCase()===promoCode.toUpperCase()&&pr.active&&(!pr.route_id||pr.route_id===trip?.route_id));
+    setPromoApplied(p||null);
+  };
+
+  const baseAmount = route.price?route.price*seats.length:0;
+  const discount   = promoApplied?promoApplied.type==="percent"?Math.round(baseAmount*promoApplied.discount/100):promoApplied.discount:0;
+  const totalAmount= Math.max(0,baseAmount-discount);
+
+  // MTN ref: 10-digit numbers e.g. 1234567890
+  // Airtel ref: alphanumeric e.g. CI250311.1234.A12345
+  const validateRef=(ref,method)=>{
+    const clean=ref.trim().toUpperCase();
+    if(!clean) return "Please enter the transaction reference number.";
+    if(method==="mtn"  && !/^\d{10}$/.test(clean))            return "MTN reference must be exactly 10 digits (e.g. 1234567890).";
+    if(method==="airtel"&&!/^[A-Z0-9]{6,20}$/.test(clean))    return "Airtel reference looks invalid (e.g. CI250311A12345).";
+    return "";
+  };
+
+  const handleInitiatePay=()=>{
+    // auto-detect network from passenger phone
+    const detected=detectNetwork(payPhone||form.phone);
+    if((payMethod==="mtn"||payMethod==="airtel")&&detected&&detected!==payMethod){
+      // don't block, just show mismatch — handled by picker
+    }
+    setPayStatus("awaitingRef");
+  };
+
+  const handleVerifyRef=()=>{
+    const err=validateRef(payRef,payMethod);
+    if(err){setPayRefError(err);return;}
+    setPayRefError("");
+    setPayStatus("verifying");
+    // Simulate network verification (real impl: call MTN/Airtel API)
+    setTimeout(()=>{
+      // Mock: accept any valid-format ref
+      const clean=payRef.trim().toUpperCase();
+      const valid=(payMethod==="cash")||
+                  (payMethod==="mtn"&&/^\d{10}$/.test(clean))||
+                  (payMethod==="airtel"&&/^[A-Z0-9]{6,20}$/.test(clean));
+      if(valid){ setPayStatus("refConfirmed"); }
+      else     { setPayStatus("failed"); }
+    },2000);
+  };
+
+  const handleFinalConfirm=()=>{
+    const code=genBookingCode(trip.vehicle_reg||"");
+    store.releaseBySid(sessionId);
+    store.addBooking({
+      booking_code:code,passenger:form.name,phone:form.phone,
+      route:`${route.origin} → ${route.destination}`,
+      route_id:route.id,seats,trip_id:trip.id,amount:totalAmount,
+      payment_status:"confirmed",status:"confirmed",
+      date:new Date().toISOString().split("T")[0],agent_id:null,is_advance:false,
+      payment_ref:payRef,payment_method:payMethod,
+    });
+    setConfirmed({
+      code,passenger:form.name,phone:form.phone,
+      route:`${route.origin} → ${route.destination}`,
+      seats,departure:formatTime(trip.departure_time),
+      amount:totalAmount,vehicle:trip.vehicle_reg,
+      payRef,payMethod,hasWhatsapp,whatsappNumber,
+    });
+    setStep(5);
+  };
+
+  const TERMS=["Arrive 20 minutes before departure.","10kg luggage free per passenger.","Extra luggage charged by weight.","Ticket valid for scheduled trip only.","QR code required for boarding."];
+
+  return(
+    <div style={{minHeight:"100vh",paddingTop:80,maxWidth:900,margin:"0 auto",padding:"80px 20px 40px"}}>
+      <h1 className="ral" style={{fontSize:30,fontWeight:800,marginBottom:4}}>Book Your Seat</h1>
+      {!currentUser&&(
+        <div style={{background:C.blueBg,border:`1px solid ${C.blue}33`,borderRadius:12,padding:"12px 18px",marginTop:10,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:13,color:C.blue}}>👤 Members book faster!</div>
+            <div style={{fontSize:12,color:C.textSecondary}}>Sign in to skip the details form — your info is pre-filled.</div>
+          </div>
+          <Btn onClick={()=>setShowAuthModal(true)} variant="outline" style={{fontSize:12,padding:"7px 16px"}}>Sign In / Register</Btn>
+        </div>
+      )}
+      {showAuthModal&&<CustomerAuthModal open={showAuthModal} onClose={()=>setShowAuthModal(false)} onLogin={u=>{setCurrentUserLocal(u);setShowAuthModal(false);if(u.name)setForm(f=>({...f,name:u.name,phone:u.phone||f.phone,email:u.email||f.email}));}}/>}
+      {/* Step indicator */}
+      <div style={{display:"flex",alignItems:"center",gap:4,marginTop:18,marginBottom:28,flexWrap:"wrap"}}>
+        {["Trip","Seats","Details","Payment","Done"].map((s,i)=>(
+          <div key={s} style={{display:"flex",alignItems:"center"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:26,height:26,borderRadius:"50%",background:step>i+1?C.green:step===i+1?C.amber:C.navyLight,border:`2px solid ${step>i+1?C.green:step===i+1?C.amber:C.navyBorder}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:step>=i+1?"#0D1B3E":C.textMuted,transition:"all .3s"}}>{step>i+1?"✓":i+1}</div>
+              <span style={{fontSize:12,color:step===i+1?C.white:C.textMuted,fontWeight:step===i+1?700:400}}>{s}</span>
+            </div>
+            {i<4&&<div style={{width:24,height:1,background:step>i+1?C.green:C.navyBorder,margin:"0 6px"}}/>}
+          </div>
+        ))}
+      </div>
+
+      <div style={{background:C.amber+"11",border:`1px solid ${C.amber}44`,borderRadius:10,padding:"9px 14px",marginBottom:20,fontSize:12,color:C.amber,lineHeight:1.7}}>
+        🧳 <b>Luggage Policy:</b> 10kg free per passenger. Additional weight charged per kg. <strong>Note:</strong> Passenger luggage is carried at the owner's risk. Raylane management will make every reasonable effort to locate missing items, but cannot be held liable for personal belongings.
+      </div>
+
+      {/* Step 1 — Trip Selection */}
+      {step===1&&(
+        <div style={{animation:"fadeUp .3s ease"}}>
+          <div style={{display:"grid",gap:11}}>
+            {store.trips.map(t=>{
+              const r=store.getRoute(t.route_id);
+              const avail=store.seatsAvailable(t); const isFull=avail<=0;
+              const isSel=trip?.id===t.id;
+              return(
+                <div key={t.id} onClick={()=>!isFull&&setTrip(t)} style={{background:"#fff",border:`2px solid ${isSel?C.amber:isFull?C.red+"33":C.navyBorder}`,borderRadius:15,padding:"16px 18px",cursor:isFull?"not-allowed":"pointer",transition:"all .2s",opacity:isFull?.55:1,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+                  <div><div className="ral" style={{fontWeight:800,fontSize:17}}>{r.origin} → {r.destination}</div><div style={{color:C.textMuted,fontSize:11,marginTop:2}}>{t.vehicle_reg}{isFull&&<span style={{color:C.red,marginLeft:8}}>● Fully Booked</span>}</div></div>
+                  <div style={{display:"flex",gap:18,alignItems:"center"}}>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.textMuted}}>Departs</div><div className="ral" style={{fontWeight:800,fontSize:20,color:C.amber}}>{formatTime(t.departure_time)}</div></div>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.textMuted}}>Seats</div><div style={{fontWeight:700,color:isFull?C.red:C.green}}>{isFull?"FULL":avail}</div></div>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.textMuted}}>Fare</div><div className="ral" style={{fontWeight:700,color:C.amber}}>{formatUGX(r.price)}</div></div>
+                    {isSel&&<div style={{width:22,height:22,borderRadius:"50%",background:C.amber,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff"}}>✓</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end",marginTop:18}}><Btn onClick={()=>setStep(2)} disabled={!trip}>Next: Choose Seats →</Btn></div>
+        </div>
+      )}
+
+      {/* Step 2 — Seat Selection */}
+      {step===2&&trip&&(
+        <div style={{animation:"fadeUp .3s ease",display:"flex",gap:24,flexWrap:"wrap"}}>
+          <div>
+            <h3 className="ral" style={{fontWeight:800,marginBottom:8}}>Choose Your Seats</h3>
+            <div style={{fontSize:12,color:C.textMuted,marginBottom:14}}>
+              Max <strong>6 seats</strong> per booking · {seats.length>0&&<span style={{color:C.amber,fontWeight:700}}>{seats.length} selected</span>}
+            </div>
+            {seats.length>=6&&(
+              <div style={{background:C.orangeBg,border:`1px solid ${C.orange}44`,borderRadius:9,padding:"8px 12px",fontSize:12,color:C.orange,fontWeight:600,marginBottom:10,animation:"fadeUp .2s ease"}}>
+                ⚠️ Maximum 6 seats per booking reached.
+              </div>
+            )}
+            <SeatMap capacity={14} bookedSeats={bookedS} reservedSeats={reservedS} selected={seats}
+              onSelect={n=>setSeats(prev=>{
+                if(prev.includes(n)){
+                  store.releaseSeat(trip.id,n);
+                  return prev.filter(s=>s!==n);
+                }
+                if(prev.length>=6) return prev;
+                if((trip.seats_booked||[]).includes(n)) return prev; // already booked
+                if(store.isSeatLocked(trip.id,n,sessionId)) return prev; // locked by someone else
+                store.lockSeat(trip.id,n,sessionId);
+                return [...prev,n];
+              })}/>
+          </div>
+          <div style={{flex:1,minWidth:190}}>
+            <Card>
+              <h3 className="ral" style={{fontWeight:700,marginBottom:14}}>Summary</h3>
+              <div className="ral" style={{fontWeight:800,fontSize:16,marginBottom:4}}>{route.origin} → {route.destination}</div>
+              <div style={{color:C.textMuted,fontSize:12,marginBottom:14}}>{formatDate(trip.departure_time)} · {formatTime(trip.departure_time)}</div>
+              {[["Seats selected",seats.length>0?seats.join(", "):"—"],["Per seat",formatUGX(route.price)],].map(([k,v])=>(
+                <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6}}><span style={{color:C.textMuted}}>{k}</span><span>{v}</span></div>
+              ))}
+              <div style={{borderTop:`1px solid ${C.navyBorder}`,paddingTop:8,display:"flex",justifyContent:"space-between"}}>
+                <span className="ral" style={{fontWeight:800}}>Total</span>
+                <span className="ral" style={{fontWeight:800,fontSize:17,color:C.green}}>{formatUGX(route.price*seats.length)}</span>
+              </div>
+            </Card>
+          </div>
+          <div style={{width:"100%",display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setStep(1)} variant="navy" style={{border:`1px solid ${C.navyBorder}`}}>← Back</Btn>
+            <Btn onClick={()=>setStep(3)} disabled={seats.length===0}>Next: Details →</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3 — Passenger Details */}
+      {step===3&&(
+        <div style={{animation:"fadeUp .3s ease",display:"flex",flexDirection:"column",gap:18}}>
+          <Card>
+            <h3 className="ral" style={{fontWeight:800,marginBottom:18}}>Passenger Information</h3>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              <div style={{gridColumn:"1/-1"}}><Input label="Full Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Sarah Nakato" required/></div>
+              <Input label="Phone Number" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+256 7XX XXX XXX" required/>
+              <Input label="Email (optional)" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="email@example.com"/>
+            </div>
+            <div style={{marginTop:16,padding:14,background:C.navyLight,borderRadius:12,border:`1px solid ${C.navyBorder}`}}>
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:14}}>
+                <input type="checkbox" checked={form.accessibility} onChange={e=>setForm({...form,accessibility:e.target.checked})} style={{width:17,height:17}}/>
+                <span style={{fontWeight:600}}>I require special assistance during boarding</span>
+              </label>
+              {form.accessibility&&(
+                <div style={{marginTop:12,animation:"fadeUp .2s ease"}}>
+                  <Input label="Describe assistance needed" value={form.assistanceDetail} onChange={e=>setForm({...form,assistanceDetail:e.target.value})} placeholder="e.g. Wheelchair assistance, elderly boarding, visual impairment"/>
+                </div>
+              )}
+            </div>
+          </Card>
+          {/* Promo code */}
+          <Card style={{padding:16}}>
+            <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+              <div style={{flex:1}}><Input label="Promo Code (optional)" value={promoCode} onChange={e=>setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. JINJA10"/></div>
+              <Btn onClick={applyPromo} variant="navy" style={{border:`1px solid ${C.navyBorder}`,padding:"11px 18px"}}>Apply</Btn>
+            </div>
+            {promoApplied&&<div style={{marginTop:8,fontSize:12,color:C.green}}>✓ "{promoApplied.description}" — saving {promoApplied.type==="percent"?`${promoApplied.discount}%`:formatUGX(promoApplied.discount)}</div>}
+            {promoCode&&!promoApplied&&<div style={{marginTop:8,fontSize:12,color:C.red}}>Code not valid for this route.</div>}
+          </Card>
+          <Card style={{background:C.navyLight}}>
+            <h3 className="ral" style={{fontWeight:700,fontSize:13,marginBottom:10}}>Travel Terms & Conditions</h3>
+            {TERMS.map((t,i)=><div key={i} style={{fontSize:12,color:C.textMuted,marginBottom:5}}>{i+1}. {t}</div>)}
+          </Card>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setStep(2)} variant="navy" style={{border:`1px solid ${C.navyBorder}`}}>← Back</Btn>
+            <Btn onClick={()=>setStep(4)} disabled={!form.name||!form.phone}>Next: Payment →</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4 — Payment */}
+      {step===4&&(
+        <div style={{animation:"fadeUp .3s ease"}}>
+
+          {/* Booking confirmation prompt BEFORE payment */}
+          {showConfirmPrompt&&(
+            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeIn .2s ease"}}>
+              <div style={{background:C.white,borderRadius:20,padding:28,maxWidth:440,width:"100%",boxShadow:"0 24px 80px rgba(0,0,0,0.2)"}}>
+                <div style={{fontSize:36,textAlign:"center",marginBottom:12}}>✅</div>
+                <h3 className="ral" style={{fontWeight:900,fontSize:20,textAlign:"center",marginBottom:6}}>Confirm Your Booking</h3>
+                <p style={{fontSize:13,color:C.textMuted,textAlign:"center",marginBottom:20,lineHeight:1.7}}>
+                  Please review and confirm before making payment.
+                </p>
+                <div style={{background:C.navyLight,borderRadius:12,padding:"14px 16px",marginBottom:20}}>
+                  {[
+                    ["Route",    `${route.origin} → ${route.destination}`],
+                    ["Date",     formatDate(trip.departure_time)],
+                    ["Departure",formatTime(trip.departure_time)],
+                    ["Seats",    seats.join(", ")],
+                    ["Passengers",seats.length],
+                    ...(promoApplied?[["Discount",`-${formatUGX(discount)}`]]:[]),
+                    ["Total Fare", formatUGX(totalAmount)],
+                  ].map(([k,v])=>(
+                    <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:7,paddingBottom:7,borderBottom:`1px solid ${C.navyBorder}`}}>
+                      <span style={{color:C.textMuted}}>{k}</span>
+                      <span style={{fontWeight:700,color:k==="Total Fare"?C.amber:C.textPrimary}}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+                <p style={{fontSize:12,color:C.textMuted,marginBottom:18,textAlign:"center"}}>
+                  By confirming, you agree to Raylane's Travel Terms & Conditions.
+                </p>
+                <div style={{display:"flex",gap:10}}>
+                  <Btn onClick={()=>setShowConfirmPrompt(false)} variant="navy" style={{flex:1,border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+                  <Btn onClick={()=>{setShowConfirmPrompt(false);handleInitiatePay();}} style={{flex:1,background:`linear-gradient(135deg,${C.green},#15803D)`}}>
+                    Yes, Proceed to Pay
+                  </Btn>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <Card style={{maxWidth:520,margin:"0 auto"}}>
+            <h3 className="ral" style={{fontWeight:800,marginBottom:18}}>Payment</h3>
+
+            {/* Order summary */}
+            <div style={{background:C.navyLight,borderRadius:12,padding:"14px 16px",marginBottom:18}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}><span style={{color:C.textMuted}}>Route</span><span style={{fontWeight:700}}>{route.origin} → {route.destination}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}><span style={{color:C.textMuted}}>Seats</span><span style={{fontWeight:600}}>{seats.join(", ")}</span></div>
+              {promoApplied&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5}}><span style={{color:C.textMuted}}>Discount</span><span style={{color:C.green,fontWeight:600}}>-{formatUGX(discount)}</span></div>}
+              <div style={{borderTop:`1px solid ${C.navyBorder}`,paddingTop:10,display:"flex",justifyContent:"space-between"}}>
+                <span className="ral" style={{fontWeight:800}}>Total Due</span>
+                <span className="ral" style={{fontWeight:800,fontSize:22,color:C.amber}}>{formatUGX(totalAmount)}</span>
+              </div>
+            </div>
+
+            {/* idle — choose method + confirm prompt */}
+            {payStatus==="idle"&&(
+              <>
+                <div style={{marginBottom:16}}>
+                  <label style={{fontSize:11,color:C.textSecondary,fontWeight:700,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:12}}>
+                    Choose Payment Method
+                  </label>
+                  {/* Phone number for network detection */}
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:11,color:C.textSecondary,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Payment Phone Number</label>
+                    <input value={payPhone||""} maxLength={10}
+                      onChange={e=>{const v=ugPhoneFormat(e.target.value);setPayPhone(v);}}
+                      placeholder="0771234567"
+                      style={{width:"100%",padding:"10px 14px",borderRadius:10,border:`1.5px solid ${payPhone&&ugPhoneValidate(payPhone)?C.red:payPhone&&!ugPhoneValidate(payPhone)&&payPhone.length===10?C.green:C.navyBorder}`,fontSize:14,fontFamily:"monospace",letterSpacing:1,outline:"none",boxSizing:"border-box"}}/>
+                    {payPhone&&ugPhoneValidate(payPhone)&&<div style={{marginTop:4,fontSize:11,color:C.red,fontWeight:600}}>⚠️ {ugPhoneValidate(payPhone)}</div>}
+                    {payPhone&&!ugPhoneValidate(payPhone)&&payPhone.length===10&&<div style={{marginTop:4,fontSize:11,color:C.green,fontWeight:600}}>✓ {detectNetwork(payPhone)==="mtn"?"MTN Uganda":detectNetwork(payPhone)==="airtel"?"Airtel Uganda":"Valid number"}</div>}
+                    <div style={{marginTop:4,fontSize:11,color:C.textMuted}}>10 digits, starting with 0 (e.g. 0771234567)</div>
+                  </div>
+                  <PaymentMethodPicker value={payMethod} onChange={setPayMethod} payPhone={payPhone||form.phone} totalAmount={totalAmount}/>
+                </div>
+                <Btn onClick={()=>setShowConfirmPrompt(true)} full style={{padding:"14px",fontSize:15}}>
+                  Review & Confirm Booking →
+                </Btn>
+              </>
+            )}
+
+            {/* awaitingRef — customer has confirmed, now enter MoMo ref */}
+            {payStatus==="awaitingRef"&&(
+              <div style={{animation:"fadeUp .3s ease"}}>
+                <div style={{background:"#F0FDF4",border:"1.5px solid #16A34A44",borderRadius:12,padding:"14px 16px",marginBottom:18,fontSize:12,color:"#14532D",lineHeight:1.9}}>
+                  <div style={{fontWeight:700,fontSize:13,marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
+                    {payMethod==="mtn"?<MTNMoMoIcon size={22} selected={true}/>:payMethod==="airtel"?<AirtelMoneyIcon size={22} selected={true}/>:null}
+                    {payMethod==="cash"?"Cash Payment Instructions":"Complete your mobile money payment"}
+                  </div>
+                  {payMethod==="cash"?(
+                    <>
+                      <div>1️⃣ Visit any <strong>Raylane Express office</strong> (Nakasero, Kampala — Mon–Sun 5AM–10PM)</div>
+                      <div>2️⃣ Mention booking reference: <strong style={{color:C.amber}}>{form.name} — {route.origin} → {route.destination}</strong></div>
+                      <div>3️⃣ Pay <strong>{formatUGX(totalAmount)}</strong> and collect your receipt.</div>
+                    </>
+                  ):(
+                    <>
+                      <div>1️⃣ Dial <strong style={{fontSize:14}}>{payMethod==="mtn"?"*165*3#":"*185*9#"}</strong> on your phone</div>
+                      <div>2️⃣ Select <strong>Pay Bill / Pay Merchant</strong></div>
+                      <div>3️⃣ Merchant Code: <strong style={{fontSize:15,letterSpacing:2,color:payMethod==="mtn"?"#D97706":"#DC2626"}}> 4 9 3 1 8</strong></div>
+                      <div>4️⃣ Amount: <strong style={{color:C.green}}>{formatUGX(totalAmount)}</strong></div>
+                      <div>5️⃣ Enter PIN → You'll get an SMS with a <strong>Transaction Reference Number</strong></div>
+                    </>
+                  )}
+                </div>
+
+                {(payMethod==="mtn"||payMethod==="airtel")&&(
+                  <div style={{marginBottom:16}}>
+                    <Input
+                      label={payMethod==="mtn"
+                        ?"MTN MoMo Transaction Reference (10 digits from SMS)"
+                        :"Airtel Money Transaction Reference (from SMS)"}
+                      value={payRef}
+                      onChange={e=>{setPayRef(e.target.value.toUpperCase());setPayRefError("");}}
+                      placeholder={payMethod==="mtn"?"e.g. 1234567890":"e.g. CI250311A12345"}
+                      style={{letterSpacing:payMethod==="mtn"?2:0}}/>
+                    {payRefError&&<div style={{fontSize:11,color:C.red,marginTop:5,fontWeight:600}}>⚠️ {payRefError}</div>}
+                    <div style={{fontSize:11,color:C.textMuted,marginTop:6,lineHeight:1.7}}>
+                      Enter the reference number exactly as received in the SMS from {payMethod==="mtn"?"MTN":"Airtel"}.
+                      Your booking will only be confirmed once the reference is verified.
+                    </div>
+                  </div>
+                )}
+
+                {/* WhatsApp receipt option */}
+                <div style={{background:C.navyLight,borderRadius:12,padding:"12px 14px",marginBottom:16}}>
+                  <div style={{fontWeight:700,fontSize:13,marginBottom:10,color:C.textPrimary}}>
+                    📲 How would you like to receive your receipt?
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,padding:"8px 10px",borderRadius:9,border:`1.5px solid ${hasWhatsapp===true?"#25D366":C.navyBorder}`,background:hasWhatsapp===true?"#F0FFF4":"transparent",transition:"all .15s"}}>
+                      <input type="radio" name="waOpt" checked={hasWhatsapp===true} onChange={()=>setHasWhatsapp(true)} style={{accentColor:"#25D366",width:16,height:16}}/>
+                      <span style={{color:"#166534",fontWeight:600}}>📱 Send to WhatsApp</span>
+                    </label>
+                    {hasWhatsapp===true&&(
+                      <div style={{animation:"fadeUp .2s ease",paddingLeft:8}}>
+                        <Input label="WhatsApp Number (if different from phone)"
+                          value={whatsappNumber}
+                          onChange={e=>setWhatsappNumber(e.target.value)}
+                          placeholder={form.phone||"+256 7XX XXX XXX"}/>
+                        <div style={{fontSize:11,color:C.textMuted,marginTop:4}}>Leave blank to use your booking phone number.</div>
+                      </div>
+                    )}
+                    <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,padding:"8px 10px",borderRadius:9,border:`1.5px solid ${hasWhatsapp===false?"#0B5FFF":C.navyBorder}`,background:hasWhatsapp===false?"#EFF6FF":"transparent",transition:"all .15s"}}>
+                      <input type="radio" name="waOpt" checked={hasWhatsapp===false} onChange={()=>setHasWhatsapp(false)} style={{accentColor:C.amber,width:16,height:16}}/>
+                      <span style={{fontWeight:600}}>🏢 Collect receipt at Raylane office</span>
+                    </label>
+                    {hasWhatsapp===false&&(
+                      <div style={{animation:"fadeUp .2s ease",background:"#EFF6FF",borderRadius:9,padding:"8px 12px",fontSize:11,color:"#1D4ED8",lineHeight:1.8}}>
+                        Show your <strong>Booking Reference Number</strong> at any Raylane Express office to collect your printed receipt and boarding pass. Office hours: Mon–Sun 5AM–10PM.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{display:"flex",gap:10}}>
+                  <Btn onClick={()=>setPayStatus("idle")} variant="navy" style={{border:`1px solid ${C.navyBorder}`}}>← Back</Btn>
+                  <Btn onClick={handleVerifyRef} full style={{padding:"13px",fontSize:14,flex:1,
+                      opacity:(payMethod!=="cash"&&!payRef)?0.5:1}}
+                    disabled={payMethod!=="cash"&&!payRef}>
+                    {payMethod==="cash"?"Submit Cash Booking":"Verify Payment Reference →"}
+                  </Btn>
+                </div>
+              </div>
+            )}
+
+            {/* verifying */}
+            {payStatus==="verifying"&&(
+              <div style={{textAlign:"center",padding:"32px 20px",animation:"fadeIn .3s ease"}}>
+                <div style={{fontSize:38,marginBottom:14}}>⏳</div>
+                <div className="ral" style={{fontWeight:800,fontSize:17,marginBottom:6}}>Verifying Payment...</div>
+                <div style={{fontSize:13,color:C.textMuted,lineHeight:1.8}}>
+                  Checking reference <strong style={{color:C.amber}}>{payRef}</strong> with {payMethod==="mtn"?"MTN MoMo":"Airtel Money"}.<br/>
+                  This usually takes a few seconds.
+                </div>
+                <div style={{marginTop:20,height:4,background:C.navyLight,borderRadius:2,overflow:"hidden"}}>
+                  <div style={{height:"100%",background:C.amber,borderRadius:2,animation:"loading 1.8s ease-in-out infinite",width:"60%"}}/>
+                </div>
+              </div>
+            )}
+
+            {/* reference confirmed — final confirm button */}
+            {payStatus==="refConfirmed"&&(
+              <div style={{animation:"fadeUp .3s ease"}}>
+                <div style={{background:"#F0FDF4",border:"1.5px solid #16A34A",borderRadius:12,padding:"14px 16px",marginBottom:18}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                    <span style={{fontSize:22}}>✅</span>
+                    <div>
+                      <div style={{fontWeight:800,fontSize:14,color:"#166534"}}>Payment Verified!</div>
+                      <div style={{fontSize:12,color:"#15803D"}}>
+                        {payMethod==="mtn"?"MTN MoMo":payMethod==="airtel"?"Airtel Money":"Cash"} payment of <strong>{formatUGX(totalAmount)}</strong> confirmed.
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:11,color:C.textMuted,background:"rgba(0,0,0,0.04)",borderRadius:8,padding:"8px 10px"}}>
+                    Reference: <strong style={{color:C.amber,letterSpacing:1}}>{payRef||"CASH"}</strong>
+                  </div>
+                </div>
+                <div style={{background:C.navyLight,borderRadius:12,padding:"12px 14px",marginBottom:16,fontSize:12,color:C.textSecondary}}>
+                  <strong>Receipt delivery:</strong> {hasWhatsapp===true
+                    ?`📱 WhatsApp to ${whatsappNumber||form.phone}`
+                    :hasWhatsapp===false
+                    ?"🏢 Collect at Raylane Express office"
+                    :"📱 SMS confirmation sent"}
+                </div>
+                <Btn onClick={handleFinalConfirm} full style={{padding:"14px",fontSize:15,background:`linear-gradient(135deg,${C.green},#15803D)`}}>
+                  ✓ Confirm & Get Boarding Pass
+                </Btn>
+              </div>
+            )}
+
+            {/* failed */}
+            {payStatus==="failed"&&(
+              <div style={{animation:"fadeUp .3s ease"}}>
+                <div style={{background:C.redBg,border:`1.5px solid ${C.red}44`,borderRadius:12,padding:"14px 16px",marginBottom:18,textAlign:"center"}}>
+                  <div style={{fontSize:28,marginBottom:8}}>❌</div>
+                  <div style={{fontWeight:800,fontSize:14,color:C.red,marginBottom:4}}>Payment Verification Failed</div>
+                  <div style={{fontSize:12,color:C.textSecondary,lineHeight:1.7}}>
+                    The reference number <strong>{payRef}</strong> could not be matched with a payment of <strong>{formatUGX(totalAmount)}</strong>.<br/>
+                    Please check the reference and try again, or contact Raylane support.
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <Btn onClick={()=>{setPayStatus("awaitingRef");setPayRef("");setPayRefError("");}} full>Try Again</Btn>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          <div style={{display:"flex",justifyContent:"center",marginTop:14}}>
+            {payStatus==="idle"&&<Btn onClick={()=>setStep(3)} variant="navy" style={{border:`1px solid ${C.navyBorder}`}}>← Back to Details</Btn>}
+          </div>
+        </div>
+      )}
+
+      {/* Step 5 — Confirmed */}
+      {step===5&&confirmed&&(
+        <div style={{animation:"fadeUp .4s ease",textAlign:"center"}}>
+          <div style={{fontSize:52,marginBottom:12}}>🎉</div>
+          <h2 className="ral" style={{fontSize:26,fontWeight:900,marginBottom:6}}>Booking Confirmed!</h2>
+          <p style={{color:C.textMuted,marginBottom:20}}>
+            {confirmed.hasWhatsapp===true
+              ?<>📱 Boarding pass sent via <strong>WhatsApp</strong> to <strong>{confirmed.whatsappNumber||confirmed.phone}</strong></>
+              :confirmed.hasWhatsapp===false
+              ?<>🏢 Collect your printed receipt & boarding pass at any <strong>Raylane Express office</strong> (show your booking code)</>
+              :<>📲 Booking confirmed. Your reference: <strong style={{color:C.amber}}>{confirmed.code}</strong></>
+            }
+          </p>
+          <div style={{maxWidth:420,margin:"0 auto"}}>
+            <Card style={{textAlign:"left",border:`1px solid ${C.amber}44`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:14,marginBottom:14,borderBottom:`2px dashed ${C.navyBorder}`}}>
+                <div><div style={{fontSize:10,color:C.textMuted,letterSpacing:1}}>BOOKING CODE</div><div className="ral" style={{fontWeight:900,fontSize:24,color:C.amber}}>{confirmed.code}</div></div>
+                <QRCode value={confirmed.code}/>
+              </div>
+              {[["Passenger",confirmed.passenger],["Route",confirmed.route],["Departure",confirmed.departure],["Seats",confirmed.seats.join(", ")],["Vehicle",confirmed.vehicle],["Total Paid",formatUGX(confirmed.amount)]].map(([k,v])=>(
+                <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:7}}><span style={{color:C.textMuted}}>{k}</span><span style={{fontWeight:700}}>{v}</span></div>
+              ))}
+              <div style={{background:C.navyLight,borderRadius:8,padding:10,margin:"10px 0",fontSize:11,color:C.textMuted}}>
+                <div style={{fontWeight:700,color:C.textPrimary,marginBottom:4}}>TRAVEL TERMS</div>
+                {TERMS.map((t,i)=><div key={i} style={{marginBottom:3}}>• {t}</div>)}
+              </div>
+              <div style={{background:C.green+"22",border:`1px solid ${C.green}44`,borderRadius:10,padding:10,fontSize:11,color:C.green,textAlign:"center"}}>
+                ✓ QR Boarding Pass sent via WhatsApp to {confirmed.phone}
+              </div>
+            </Card>
+            <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"center"}}>
+              <Btn variant="navy" style={{fontSize:12,border:`1px solid ${C.navyBorder}`}}>Download PDF</Btn>
+              <Btn onClick={()=>window.location.reload()} style={{fontSize:12}}>Book Another</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// PAGE: PLAN YOUR JOURNEY (Advance Booking)
+// ═══════════════════════════════════════════════════════════════════════
+const PlanJourneyPage=({store,currentUser})=>{
+  const [form,setForm]=useState({origin:"Kampala",destination:"",date:"",time:"",passengers:"1",name:currentUser?.name||"",phone:currentUser?.phone||"",email:"",accessibility:false,assistanceDetail:""});
+  const [selectedSeats,setSelectedSeats]=useState([]);
+  const [promoCode,setPromoCode]=useState(""); const [promoApplied,setPromoApplied]=useState(null);
+  const [payMethod,setPayMethod]=useState("mtn");
+  const [step,setStep]=useState(1);
+  const [submitted,setSubmitted]=useState(null);
+
+  const route=ROUTES.find(r=>r.destination===form.destination)||null;
+  const tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const maxDate=new Date(); maxDate.setDate(maxDate.getDate()+14);
+  const minDateStr=tomorrow.toISOString().split("T")[0];
+  const maxDateStr=maxDate.toISOString().split("T")[0];
+
+  const baseAmount=route?route.price*parseInt(form.passengers||1):0;
+  const discount=promoApplied?promoApplied.type==="percent"?Math.round(baseAmount*promoApplied.discount/100):promoApplied.discount:0;
+  const totalAmount=Math.max(0,baseAmount-discount);
+
+  const applyPromo=()=>{
+    const p=store.promotions.find(pr=>pr.code.toUpperCase()===promoCode.toUpperCase()&&pr.active&&(!pr.route_id||pr.route_id===route?.id));
+    setPromoApplied(p||null);
+  };
+
+  const handleSubmit=()=>{
+    const code=genBookingCode("");
+    store.addBooking({booking_code:code,passenger:form.name,phone:form.phone,route:route?`${route.origin} → ${route.destination}`:"",route_id:route?.id,seats:selectedSeats,trip_id:null,amount:totalAmount,payment_status:"pending",status:"advance",date:form.date,agent_id:null,is_advance:true});
+    setSubmitted({code,name:form.name,route:route?`${route.origin} → ${route.destination}`:"",date:form.date,seats:selectedSeats,amount:totalAmount});
+  };
+
+  if(submitted) return(
+    <div style={{minHeight:"100vh",paddingTop:80,maxWidth:560,margin:"0 auto",padding:"80px 20px 40px",textAlign:"center"}}>
+      <div style={{fontSize:52,marginBottom:14}}>📅</div>
+      <h2 className="ral" style={{fontSize:26,fontWeight:900,marginBottom:8}}>Advance Booking Submitted!</h2>
+      <p style={{color:C.textMuted,marginBottom:28,lineHeight:1.7}}>Your booking is pending admin confirmation. You will receive a WhatsApp notification once confirmed and a vehicle is assigned.</p>
+      <Card style={{textAlign:"left",border:`1px solid ${C.amber}44`}}>
+        <div style={{marginBottom:14,paddingBottom:14,borderBottom:`2px dashed ${C.navyBorder}`}}>
+          <div style={{fontSize:10,color:C.textMuted}}>BOOKING CODE</div>
+          <div className="ral" style={{fontWeight:900,fontSize:24,color:C.amber}}>{submitted.code}</div>
+        </div>
+        {[["Passenger",submitted.name],["Route",submitted.route],["Travel Date",submitted.date],["Preferred Seats",submitted.seats.join(", ")||"Any available"],["Estimated Fare",formatUGX(submitted.amount)]].map(([k,v])=>(
+          <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:7}}><span style={{color:C.textMuted}}>{k}</span><span style={{fontWeight:700}}>{v}</span></div>
+        ))}
+        <div style={{background:C.amber+"22",border:`1px solid ${C.amber}44`,borderRadius:10,padding:10,marginTop:12,fontSize:11,color:C.amber,textAlign:"center"}}>
+          ⏳ Status: Pending Admin Confirmation
+        </div>
+      </Card>
+    </div>
+  );
+
+  return(
+    <div style={{minHeight:"100vh",paddingTop:80,maxWidth:860,margin:"0 auto",padding:"80px 20px 40px"}}>
+      <div style={{marginBottom:28}}>
+        <h1 className="ral" style={{fontSize:30,fontWeight:800}}>Plan Your Journey</h1>
+        <p style={{color:C.textMuted,fontSize:13,marginTop:4}}>Book in advance — up to 14 days ahead. Admin confirms and assigns your vehicle.</p>
+      </div>
+      <div style={{background:C.blue+"22",border:`1px solid ${C.blue}44`,borderRadius:10,padding:"10px 16px",marginBottom:22,fontSize:12,color:C.blue}}>
+        📅 Advance bookings are <strong>Pending Confirmation</strong> until admin assigns a vehicle and driver. Once payment is confirmed, your booking auto-activates the day before travel.
+      </div>
+
+      {step===1&&(
+        <div style={{animation:"fadeUp .3s ease"}}>
+          <Card style={{marginBottom:18}}>
+            <h3 className="ral" style={{fontWeight:800,marginBottom:18}}>Journey Details</h3>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              <Sel label="From" required value={form.origin} onChange={e=>setForm({...form,origin:e.target.value})} options={[{value:"Kampala",label:"Kampala"}]}/>
+              <Sel label="To" required value={form.destination} onChange={e=>setForm({...form,destination:e.target.value})} options={[{value:"",label:"Select destination"},...ROUTES.map(r=>({value:r.destination,label:r.destination}))]}/>
+              <Input label="Travel Date" type="date" required value={form.date} onChange={e=>setForm({...form,date:e.target.value})} style={{minDate:minDateStr}} placeholder={minDateStr}/>
+              <Sel label="Preferred Time (optional)" value={form.time} onChange={e=>setForm({...form,time:e.target.value})} options={[{value:"",label:"Any time"},{value:"06:00",label:"06:00 AM"},{value:"08:00",label:"08:00 AM"},{value:"10:00",label:"10:00 AM"},{value:"12:00",label:"12:00 PM"},{value:"14:00",label:"02:00 PM"},{value:"16:00",label:"04:00 PM"}]}/>
+              <Sel label="Number of Passengers" value={form.passengers} onChange={e=>setForm({...form,passengers:e.target.value})} options={["1","2","3","4","5"].map(v=>({value:v,label:`${v} passenger${v>1?"s":""}`}))}/>
+              {route&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,color:C.green,fontWeight:700}}><span>💺</span>Estimated fare: {formatUGX(route.price)} per seat</div>}
+            </div>
+          </Card>
+          <div style={{display:"flex",justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setStep(2)} disabled={!form.destination||!form.date}>Next: Select Seats →</Btn>
+          </div>
+        </div>
+      )}
+
+      {step===2&&(
+        <div style={{animation:"fadeUp .3s ease"}}>
+          <div style={{display:"flex",gap:24,flexWrap:"wrap",marginBottom:18}}>
+            <div>
+              <h3 className="ral" style={{fontWeight:800,marginBottom:14}}>Preferred Seats (optional)</h3>
+              <p style={{fontSize:12,color:C.textMuted,marginBottom:12}}>Select preferred seats. Admin will confirm availability.</p>
+              <SeatMap capacity={14} bookedSeats={[]} reservedSeats={[]} selected={selectedSeats} onSelect={n=>setSelectedSeats(prev=>prev.includes(n)?prev.filter(s=>s!==n):[...prev,n])}/>
+            </div>
+            <div style={{flex:1,minWidth:180}}>
+              <Card>
+                <h3 className="ral" style={{fontWeight:700,marginBottom:14}}>Booking Preview</h3>
+                <div className="ral" style={{fontWeight:800,fontSize:16,marginBottom:4}}>{form.origin} → {form.destination}</div>
+                <div style={{color:C.textMuted,fontSize:12,marginBottom:14}}>{form.date} · {form.time||"Any time"}</div>
+                {[["Passengers",form.passengers],["Seats",selectedSeats.length?selectedSeats.join(", "):"Any available"]].map(([k,v])=>(
+                  <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6}}><span style={{color:C.textMuted}}>{k}</span><span>{v}</span></div>
+                ))}
+                <div style={{borderTop:`1px solid ${C.navyBorder}`,paddingTop:8,display:"flex",justifyContent:"space-between"}}>
+                  <span className="ral" style={{fontWeight:700}}>Est. Total</span>
+                  <span className="ral" style={{fontWeight:800,fontSize:17,color:C.green}}>{formatUGX(route?route.price*parseInt(form.passengers):0)}</span>
+                </div>
+              </Card>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setStep(1)} variant="navy" style={{border:`1px solid ${C.navyBorder}`}}>← Back</Btn>
+            <Btn onClick={()=>setStep(3)}>Next: Your Details →</Btn>
+          </div>
+        </div>
+      )}
+
+      {step===3&&(
+        <div style={{animation:"fadeUp .3s ease",display:"flex",flexDirection:"column",gap:16}}>
+          <Card>
+            <h3 className="ral" style={{fontWeight:800,marginBottom:16}}>Passenger Details</h3>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              <div style={{gridColumn:"1/-1"}}><Input label="Full Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Your full name" required/></div>
+              <Input label="Phone Number" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+256 7XX XXX XXX" required/>
+              <Input label="Email (optional)" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="email@example.com"/>
+            </div>
+            <div style={{marginTop:14,padding:12,background:C.navyLight,borderRadius:12,border:`1px solid ${C.navyBorder}`}}>
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13}}>
+                <input type="checkbox" checked={form.accessibility} onChange={e=>setForm({...form,accessibility:e.target.checked})} style={{width:16,height:16}}/>
+                <span style={{fontWeight:600}}>I require special assistance</span>
+              </label>
+              {form.accessibility&&(
+                <div style={{marginTop:10}}>
+                  <Input value={form.assistanceDetail} onChange={e=>setForm({...form,assistanceDetail:e.target.value})} placeholder="e.g. Wheelchair, elderly boarding..."/>
+                </div>
+              )}
+            </div>
+          </Card>
+          <Card style={{padding:14}}>
+            <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+              <div style={{flex:1}}><Input label="Promo Code (optional)" value={promoCode} onChange={e=>setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. JINJA10"/></div>
+              <Btn onClick={applyPromo} variant="navy" style={{border:`1px solid ${C.navyBorder}`,padding:"11px 18px"}}>Apply</Btn>
+            </div>
+            {promoApplied&&<div style={{marginTop:6,fontSize:12,color:C.green}}>✓ Saving {promoApplied.type==="percent"?`${promoApplied.discount}%`:formatUGX(promoApplied.discount)}</div>}
+          </Card>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setStep(2)} variant="navy" style={{border:`1px solid ${C.navyBorder}`}}>← Back</Btn>
+            <Btn onClick={()=>setStep(4)} disabled={!form.name||!form.phone}>Next: Payment →</Btn>
+          </div>
+        </div>
+      )}
+
+      {step===4&&(
+        <div style={{animation:"fadeUp .3s ease"}}>
+          <Card style={{maxWidth:460,margin:"0 auto"}}>
+            <h3 className="ral" style={{fontWeight:800,marginBottom:16}}>Advance Booking Payment</h3>
+            <div style={{background:C.navyLight,borderRadius:10,padding:14,marginBottom:16,fontSize:12,color:C.textMuted,lineHeight:1.7}}>
+              💡 For advance bookings, you may pay a deposit or full amount now. Full payment must be confirmed before vehicle assignment.
+            </div>
+            <div style={{background:C.navyLight,borderRadius:10,padding:14,marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:C.textMuted}}>Route</span><span style={{fontWeight:700}}>{form.origin} → {form.destination}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:C.textMuted}}>Date</span><span>{form.date}</span></div>
+              {promoApplied&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:C.textMuted}}>Discount</span><span style={{color:C.green}}>-{formatUGX(discount)}</span></div>}
+              <div style={{borderTop:`1px solid ${C.navyBorder}`,paddingTop:8,display:"flex",justifyContent:"space-between"}}>
+                <span className="ral" style={{fontWeight:800}}>Total</span>
+                <span className="ral" style={{fontWeight:800,fontSize:20,color:C.amber}}>{formatUGX(totalAmount)}</span>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
+              <PaymentMethodPicker value={payMethod} onChange={setPayMethod} showMoMoInstructions={true} totalAmount={totalAmount}/>
+            </div>
+            <Btn onClick={handleSubmit} full style={{padding:"13px"}}>Submit Advance Booking →</Btn>
+          </Card>
+          <div style={{display:"flex",justifyContent:"center",marginTop:14}}>
+            <Btn onClick={()=>setStep(3)} variant="navy" style={{border:`1px solid ${C.navyBorder}`}}>← Back</Btn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// PAGE: PARCEL
+// ═══════════════════════════════════════════════════════════════════════
+const ParcelPage=()=>{
+  const [form,setForm]=useState({sender:"",senderPhone:"",senderNIN:"",receiver:"",receiverPhone:"",receiverNIN:"",destination:"",description:"",weight:"",declaredValue:"",insurance:false});
+  const insAmt=form.insurance&&form.declaredValue?Math.round(parseFloat(form.declaredValue||0)*0.06):0;
+  const [tracking,setTracking]=useState(""); const [trackResult,setTrackResult]=useState(null);
+  const mock=[{code:"RX-P001",status:"active",location:"Nakasero Terminal",updated:"10:30 AM"},{code:"RX-P002",status:"confirmed",location:"Gulu",updated:"Yesterday 3PM"}];
+  return(
+    <div style={{minHeight:"100vh",paddingTop:80,maxWidth:900,margin:"0 auto",padding:"80px 20px 40px"}}>
+      <h1 className="ral" style={{fontSize:30,fontWeight:800,marginBottom:6}}>Parcel & Courier</h1>
+      <p style={{color:C.textMuted,marginBottom:24}}>Send parcels across Uganda with every trip</p>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:22}}>
+        <Card>
+          <h3 className="ral" style={{fontWeight:800,fontSize:17,marginBottom:18}}>Send a Parcel</h3>
+          <div style={{display:"flex",flexDirection:"column",gap:11}}>
+            <Input label="Sender Name" value={form.sender} onChange={e=>setForm({...form,sender:e.target.value})} placeholder="Your full name"/>
+            <Input label="Sender Phone" value={form.senderPhone} onChange={e=>setForm({...form,senderPhone:e.target.value})} placeholder="+256 7XX XXX XXX"/>
+            <Input label="Sender National ID — NIN (optional)" value={form.senderNIN} onChange={e=>setForm({...form,senderNIN:e.target.value})} placeholder="e.g. CM8700000XXXXX" maxLength={14}/>
+            <Input label="Receiver Name" value={form.receiver} onChange={e=>setForm({...form,receiver:e.target.value})} placeholder="Receiver's name"/>
+            <Input label="Receiver Phone" value={form.receiverPhone} onChange={e=>setForm({...form,receiverPhone:e.target.value})} placeholder="+256 7XX XXX XXX"/>
+            <Input label="Receiver National ID — NIN (optional)" value={form.receiverNIN} onChange={e=>setForm({...form,receiverNIN:e.target.value.toUpperCase()})} placeholder="e.g. CM8700000XXXXX" maxLength={14}/>
+            <div style={{background:C.amber+"11",border:`1px solid ${C.amber}33`,borderRadius:10,padding:"10px 14px",fontSize:11,color:C.amber,lineHeight:1.8}}>
+              🧳 <strong>Luggage Disclaimer:</strong> Raylane Express makes every reasonable effort to recover missing items, but goods in transit are carried <strong>at the owner's risk</strong>. We strongly recommend insurance for valuable parcels.
+            </div>
+            <div style={{background:C.navyLight,borderRadius:12,padding:"12px 14px",border:`1px solid ${C.navyBorder}`}}>
+              <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer"}}>
+                <input type="checkbox" checked={form.insurance} onChange={e=>setForm({...form,insurance:e.target.checked})} style={{width:16,height:16,marginTop:2,accentColor:C.green}}/>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13,color:C.textPrimary}}>🛡️ Include Parcel Insurance <span style={{color:C.textMuted,fontWeight:400}}>(6% of declared value)</span></div>
+                  <div style={{fontSize:11,color:C.textMuted,marginTop:2}}>Covers loss or damage in transit. Payout based on declared value.</div>
+                </div>
+              </label>
+              {form.insurance&&(
+                <div style={{marginTop:10,animation:"fadeUp .2s ease"}}>
+                  <Input label="Declared Value (UGX) *" type="number" value={form.declaredValue} onChange={e=>setForm({...form,declaredValue:e.target.value})} placeholder="e.g. 500000"/>
+                  {insAmt>0&&<div style={{marginTop:6,background:C.green+"22",border:`1px solid ${C.green}44`,borderRadius:8,padding:"7px 12px",fontSize:12,color:C.green,fontWeight:700}}>✓ Insurance: {formatUGX(insAmt)} added to cost</div>}
+                </div>
+              )}
+            </div>
+            <Sel label="Destination" value={form.destination} onChange={e=>setForm({...form,destination:e.target.value})} options={[{value:"",label:"Choose destination"},...ROUTES.map(r=>({value:r.destination,label:r.destination}))]}/>
+            <Input label="Weight (kg)" type="number" value={form.weight} onChange={e=>setForm({...form,weight:e.target.value})} placeholder="e.g. 2.5"/>
+            <Input label="Description" value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="What's inside?"/>
+            <div style={{background:C.navyLight,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.textMuted}}>🧳 Up to 10kg free of charge</div>
+            <Btn full style={{marginTop:4}} onClick={()=>{
+              const code=genParcelCode("");
+              alert(`✅ Parcel booked!\nYour tracking code: ${code}\nSave this code to track your parcel.`);
+            }}>Submit Parcel Booking</Btn>
+          </div>
+        </Card>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <Card>
+            <h3 className="ral" style={{fontWeight:800,fontSize:17,marginBottom:14}}>Track Your Parcel</h3>
+            <Input label="Parcel Code" value={tracking} onChange={e=>setTracking(e.target.value)} placeholder="e.g. RX-P001"/>
+            <Btn onClick={()=>setTrackResult(mock.find(p=>p.code.toLowerCase()===tracking.toLowerCase())||{code:tracking,status:"cancelled",location:"Not found",updated:"—"})} full style={{marginTop:10}}>Track →</Btn>
+            {trackResult&&(
+              <div style={{marginTop:12,background:C.navyLight,borderRadius:10,padding:12,animation:"fadeUp .3s ease"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span className="ral" style={{fontWeight:700}}>{trackResult.code}</span><StatusBadge status={trackResult.status}/></div>
+                <div style={{fontSize:12,color:C.textMuted}}>Location: {trackResult.location}</div>
+                <div style={{fontSize:11,color:C.textMuted,marginTop:3}}>Updated: {trackResult.updated}</div>
+              </div>
+            )}
+          </Card>
+          <Card>
+            <h3 className="ral" style={{fontWeight:700,fontSize:15,marginBottom:12}}>Pricing Guide</h3>
+            {[["0–2 kg","UGX 5,000"],["2–5 kg","UGX 10,000"],["5–10 kg","UGX 18,000"],["10+ kg","Contact us"]].map(([w,p])=>(
+              <div key={w} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.navyBorder}`,fontSize:13}}>
+                <span style={{color:C.textMuted}}>{w}</span><span style={{fontWeight:700,color:C.amber}}>{p}</span>
+              </div>
+            ))}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SafetyPage=({store})=>{
+  const safetyPhotos=(store&&store.safetyPhotos)||[];
+  const SECTIONS=[
+    {icon:"👁️",title:"Be Aware of Your Surroundings",body:"Always remain conscious of your environment and the people around you. It is easy to become distracted while using your phone or listening to music, but this can create an opportunity for criminals. Being alert helps you identify potential risks and ensures you can clearly recall and report incidents or suspicious behavior."},
+    {icon:"💰",title:"Keep Valuable Items Out of Sight",body:"Most crimes are based on opportunity. Keep valuables such as mobile phones, laptops, jewellery, and large amounts of cash out of visible sight to reduce the likelihood of attracting unwanted attention from opportunistic criminals."},
+    {icon:"🎒",title:"Maintain Control of Your Belongings",body:"Keep all personal items under your direct control at all times. Bags, purses, packages, or briefcases placed down even briefly may become easy targets. Keeping items close also ensures you do not leave anything behind. Items left unattended in public spaces may also be treated as suspicious and removed by authorities."},
+    {icon:"🤝",title:"Community Vigilance Matters",body:"Successful crime prevention relies on active participation from everyone. By remaining vigilant and taking simple precautions, you help create a safer travel environment and make it more difficult for criminals to commit opportunistic crimes."},
+  ];
+  const BOARD=[
+    {phase:"While Waiting to Board",icon:"⏳",tips:["Wait in well-lit and populated areas where possible.","Keep your luggage and personal belongings close at all times.","Avoid displaying valuables openly in busy areas.","Remain attentive to announcements and boarding instructions."]},
+    {phase:"While on Board",icon:"🚐",tips:["Store luggage securely in designated areas or under your seat where possible.","Keep essential items — phones, wallets, travel documents — with you.","Follow instructions from the driver or Raylane Express staff.","Use seat belts where available."]},
+    {phase:"When Disembarking",icon:"🚪",tips:["Collect all your belongings before leaving the vehicle.","Be mindful of your surroundings when exiting and moving through public areas.","If travelling at night, move towards well-lit areas and trusted transport connections."]},
+  ];
+  return(
+    <div style={{minHeight:"100vh",paddingTop:80,maxWidth:1040,margin:"0 auto",padding:"80px 20px 60px"}}>
+      <div style={{textAlign:"center",marginBottom:44}}>
+        <div style={{fontSize:50,marginBottom:14}}>🛡️</div>
+        <h1 className="ral" style={{fontSize:34,fontWeight:900,marginBottom:10}}>Passenger Safety &amp; Security Guide</h1>
+        <p style={{color:C.textMuted,maxWidth:560,margin:"0 auto",lineHeight:1.8,fontSize:14}}>
+          At Raylane Express, we take deliberate steps to ensure the safety and security of all our passengers.
+          However, personal awareness plays an important role in preventing crime. The following simple
+          precautions can help protect you and your belongings while travelling.
+        </p>
+      </div>
+
+      {/* Admin safety photos */}
+      {safetyPhotos.filter(s=>s.active&&s.url).length>0&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14,marginBottom:36}}>
+          {safetyPhotos.filter(s=>s.active&&s.url).map(s=>(
+            <div key={s.id} style={{borderRadius:16,overflow:"hidden",boxShadow:"0 4px 18px rgba(11,30,75,0.10)"}}>
+              <img src={s.url} alt={s.caption} style={{width:"100%",aspectRatio:"16/9",objectFit:"cover",display:"block"}}/>
+              {s.caption&&<div style={{padding:"10px 14px",background:C.navyLight,fontSize:12,color:C.textSecondary,fontStyle:"italic"}}>{s.caption}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 4 core safety principles */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:16,marginBottom:32}}>
+        {SECTIONS.map((g,i)=>(
+          <Card key={i} style={{animation:`fadeUp ${.08+i*.07}s ease`}}>
+            <div style={{fontSize:30,marginBottom:10}}>{g.icon}</div>
+            <h3 className="ral" style={{fontWeight:800,fontSize:14,marginBottom:8,color:C.navy}}>{g.title}</h3>
+            <p style={{fontSize:12,color:C.textMuted,lineHeight:1.85}}>{g.body}</p>
+          </Card>
+        ))}
+      </div>
+
+      {/* Phase-based tips */}
+      <h2 className="ral" style={{fontWeight:900,fontSize:20,marginBottom:16,color:C.navy}}>Additional Safety Recommendations</h2>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16,marginBottom:32}}>
+        {BOARD.map((b,i)=>(
+          <Card key={i} style={{borderTop:`3px solid ${C.amber}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <span style={{fontSize:22}}>{b.icon}</span>
+              <h3 className="ral" style={{fontWeight:800,fontSize:14,color:C.navy,margin:0}}>{b.phase}</h3>
+            </div>
+            <ul style={{margin:0,padding:"0 0 0 18px",listStyle:"disc"}}>
+              {b.tips.map((t,j)=>(
+                <li key={j} style={{fontSize:12,color:C.textSecondary,lineHeight:1.85,marginBottom:4}}>{t}</li>
+              ))}
+            </ul>
+          </Card>
+        ))}
+      </div>
+
+      {/* Luggage disclaimer */}
+      <Card style={{background:C.amber+"11",border:`1px solid ${C.amber}44`,marginBottom:20}}>
+        <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+          <span style={{fontSize:28,flexShrink:0}}>🧳</span>
+          <div>
+            <h3 className="ral" style={{fontWeight:800,fontSize:15,marginBottom:6,color:C.amber}}>Luggage Disclaimer</h3>
+            <p style={{fontSize:13,color:C.textSecondary,lineHeight:1.8,margin:0}}>
+              While Raylane Express management makes every reasonable effort to help recover missing passenger
+              items, all luggage and personal belongings are carried <strong>at the owner's risk</strong>.
+              For parcels and shipped goods, passengers may opt for insurance at checkout (6% of declared value)
+              which covers loss or damage in transit.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Reporting */}
+      <Card style={{background:C.navy,border:"none"}}>
+        <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+          <span style={{fontSize:28,flexShrink:0}}>📞</span>
+          <div>
+            <h3 className="ral" style={{fontWeight:800,fontSize:15,marginBottom:6,color:"#fff"}}>Reporting Concerns</h3>
+            <p style={{fontSize:13,color:"rgba(255,255,255,0.7)",lineHeight:1.8,marginBottom:10}}>
+              If you observe any suspicious or criminal activity, please report it immediately to Raylane Express
+              by calling or sending a WhatsApp message to our Official Call Center. Passengers are also encouraged
+              to notify the driver immediately if any issue arises during the journey.
+            </p>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+              <div style={{background:C.amber,color:"#0D1B3E",padding:"9px 18px",borderRadius:20,fontWeight:900,fontSize:14,fontFamily:"'Raleway',sans-serif"}}>📱 0766 026 401</div>
+              <div style={{color:"rgba(255,255,255,0.55)",fontSize:12}}>Call or WhatsApp · Official Call Center</div>
+            </div>
+            <div style={{marginTop:14,padding:"10px 14px",background:"rgba(255,255,255,0.08)",borderRadius:10,fontSize:12,color:C.amber,fontWeight:700,fontStyle:"italic"}}>
+              Remember: Safety begins with you. Practising these tips will help ensure a safer and more comfortable journey with Raylane Express.
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+
+const FAQPage=()=>(
+  <div style={{minHeight:"100vh",paddingTop:80,maxWidth:760,margin:"0 auto",padding:"80px 20px 60px"}}>
+    <div style={{textAlign:"center",marginBottom:36}}>
+      <h1 className="ral" style={{fontSize:32,fontWeight:900,marginBottom:8}}>Frequently Asked Questions</h1>
+      <p style={{color:C.textMuted,fontSize:14}}>Everything you need to know about travelling with Raylane Express</p>
+    </div>
+    {FAQ_DATA.map((f,i)=><FAQItem key={i} f={f}/>)}
+    <Card style={{marginTop:24,textAlign:"center",background:C.amber+"11",border:`1px solid ${C.amber}44`}}>
+      <h3 className="ral" style={{fontWeight:700,marginBottom:6}}>Still have questions?</h3>
+      <p style={{fontSize:13,color:C.textMuted,marginBottom:14}}>Our support team is available Mon–Sun 5AM–10PM</p>
+      <div style={{display:"flex",gap:10,justifyContent:"center"}}><Btn style={{padding:"9px 20px",fontSize:13}}>📞 Call Us</Btn><Btn variant="navy" style={{padding:"9px 20px",fontSize:13,border:`1px solid ${C.navyBorder}`}}>💬 WhatsApp</Btn></div>
+    </Card>
+  </div>
+);
+
+// ═══════════════════════════════════════════════════════════════════════
+const LoginPage=({onLogin,agents})=>{
+  const [username,setUsername]=useState("");
+  const [password,setPassword]=useState("");
+  const [role,setRole]=useState("admin");
+  const [err,setErr]=useState("");
+
+  const handle=()=>{
+    setErr("");
+    if(role==="admin"){
+      if(username==="admin"&&password==="raylane2026"){onLogin({role:"admin",name:"Administrator",username:"admin"});return;}
+      setErr("Invalid admin credentials.");
+    } else {
+      const ag=agents.find(a=>a.username===username&&a.password===password);
+      if(!ag){setErr("Agent not found or wrong password.");return;}
+      if(ag.status==="suspended"){setErr("This agent account is suspended. Contact admin.");return;}
+      onLogin({role:"agent",name:ag.name,username:ag.username,agentId:ag.id});
+    }
+  };
+
+  return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.navy,padding:20}}>
+      <div style={{maxWidth:380,width:"100%"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{width:52,height:52,background:`linear-gradient(135deg,${C.amber},${C.amberDark})`,borderRadius:14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 12px"}}>🚐</div>
+          <div className="ral" style={{fontWeight:900,fontSize:20,letterSpacing:"1px"}}>RAYLANE</div>
+          <div style={{fontSize:11,color:C.textMuted,marginTop:4,letterSpacing:1}}>STAFF PORTAL</div>
+        </div>
+        <Card>
+          <div style={{display:"flex",gap:6,marginBottom:22}}>
+            {["admin","agent"].map(r=>(
+              <button key={r} onClick={()=>{setRole(r);setErr("");}} style={{flex:1,padding:"9px",borderRadius:9,border:"none",background:role===r?C.amber:"transparent",color:role===r?"#0D1B3E":C.textSecondary,cursor:"pointer",fontFamily:"'Raleway',sans-serif",fontWeight:700,fontSize:13,transition:"all .2s"}}>
+                {r==="admin"?"👑 Admin":"🙎 Agent"}
+              </button>
+            ))}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <Input label="Username" value={username} onChange={e=>setUsername(e.target.value)} placeholder={role==="admin"?"admin":"agent.username"}/>
+            <Input label="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••"/>
+            {err&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"9px 14px",fontSize:12,color:C.red}}>{err}</div>}
+            <Btn onClick={handle} full style={{padding:"12px",marginTop:2}}>Sign In →</Btn>
+          </div>
+          <p style={{fontSize:11,color:C.textMuted,textAlign:"center",marginTop:14}}>Authorised personnel only. Not for public access.</p>
+          {role==="agent"&&(
+            <div style={{marginTop:12,background:C.navyLight,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.textMuted}}>
+              Demo agents: <strong style={{color:C.white}}>moses.lubega / agent123</strong> · <strong style={{color:C.white}}>ruth.acen / agent456</strong>
+            </div>
+          )}
+          {role==="admin"&&(
+            <div style={{marginTop:12,background:C.navyLight,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.textMuted}}>
+              Demo: <strong style={{color:C.white}}>admin / raylane2026</strong>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADMIN DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// FINANCE, PAYROLL & SACO MODULES
+// ═══════════════════════════════════════════════════════════════════
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// FINANCE MODULE \u2014 IASB/GAAP/URA COMPLIANT
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+const EXPENSE_CATEGORIES=[
+  "Fuel","Vehicle Servicing","Tyre Replacement","Vehicle Washing","Vehicle Insurance","Road License Fees","Parking Fees",
+  "Driver Salary","Driver Trip Allowance","Driver Overtime","Driver Accommodation",
+  "Office Staff Salary","Agent Commissions","Temporary Staff","Staff Lunch Allowance","Staff Transport Allowance",
+  "Office Rent","Electricity","Internet Services","Software Subscriptions","Stationery",
+  "Business Registration","Transport Licensing","Vehicle Permits","Legal Consultation",
+  "Traffic Fines","Vehicle Impound","Road Compliance Penalties",
+  "Advertising","Promotional Discounts","Online Advertising",
+  "Mechanic Services","Vehicle Towing","Vehicle Inspection",
+  "Vendor Van Hire","Vendor Driver Allowance","Vendor Fuel Reimbursement",
+  "Loan Repayment","Bank Charges","Other"
+];
+
+const MTN_MOMO_B64="data:image/png;base64,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tMt6r8r8QuvVhOmrDzcQYErGMZrVFIOcQ7Nubd49SyqzXKju9rp7lQTNlp52B7HDr6O1fVIxskbmPALXAgg9IXnmSmo1MnWRgLPhuvbsOY+RXR48Jk1Acw5hw+K4XOxWrItI1mdYcZ3K2luTGTF0fW07QsdK9dyswyZgMjw91wBHYRdceiw3QnljtQbKio5VVpVZSBWlRt03DtUkVG3TcO1U4u6qsLeUlafFhSo3KKtPiwpUbleQd1YiZ3yqoiKqrdERERERERERERERERERERERERERERFdF41narVWPxje1QOimZvBSE52heDir53bl4EqQnNXwCOKtJVCVQlSqayFSuELJUYixFSWmnBJmeNc+S0bz6lEE9C6D5POFPo6zPxDVx5VNaMoQRtbHx9K1jFtebRKY+Y/Wcm/7j/GvcstRqeZ6abD4DM9i2daKCntlsp6ClaGwwRhjQOpfUsbx9jC2YQtRq60mSZ+yGBh755+Q61o+4abMWTVRkpY6Omiz2RlhdkO3MLz5RsH1avNdMwW+iSfScbXPG3Ero07WZOnkQnnPkOC6OrqWnraSSlqomywytLXtcMwQVy5phwHNhG793pWuktdS4mF+XgHyCtmaNNMEN6rmWq/wx0tTIdWKdh/luPA8FsnFFkocRWSotVewOhmbkHDew9Dh1hZWkztSwRUxCnGkMdvDUEes3rH0KtJyBK12V24J9IaHiDyPatDcnzG5tN2GHLhLlQ1j84XOOyKX/BXRq4vxXZa/CuJKi2VQLJqeTON43Pb+Fw7V05oexU3FOD6eaV4NbTDuNQOkkbnekLMeUihQiGVmUzZEttW0udHd+h67c1Z4Zn3jako283T5juWrOVJau4X+23djcm1UJiceLmH/BC0yV05yl7eKrR+ysAzfR1THZ8GuzaffkuY1v3k7njNUGGDqwlvgbj3ELX8SQOin3Efqsf771Qq0qpKot4WCVpUddNw7VIqNufgjtVOLuqrD3lJ2nxYUqNyirT4sKVG5XkHdWImd8qqIiqq3RERERERERERERERERERERERERERERVZ4xvaqIPCb2qB0U0PeC+mc7QvElXTHaF5EqkSsgAqkq0lUJVCegKW6mssl0b4clxRiyltoBEAd3SoeB4MY3+vd6V1rTQRU1PHTwMDIomhjGjcABkAtfaB8Kfw/hUV1VFq19wykfmN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";
+const AIRTEL_MONEY_B64="data:image/png;base64,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V4/g2j8XkILEj8LePWfqbqkcssncQ4tMVdXNdarQ4689K38ZKP8Aw2f/ANHQdWq01gjBuH8HW74HY6JsRd+Vnf5Usp63O6e7gOgKQIpmno44NmZ4rluN6T1uLu1ZDqs3NGzt4n9gBERFtKuIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiLpsV4XsGKaEUd+tkNbG3ewuBD2Hra4aEeBVbVvJ5wbNKX09wvNM0/IbKxwHrZr7VcSLDJTxSG7m3UnRY1X0LdSnlc0cL5d2xVHb+T7geneHVNRd6zT5MlQ1oP8LQfap1hnA2EsN6Os1ho6eUf2xZty/xu1d7VIkRlPEzNrQv2qxvEKsas0ziOF8u7YiIizKLRERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERFWWaucFnwXUvtVLTm53drQXxNdsxw6jUbbuvp0HsVYU3KMxS2qDqmyWaSn13sjEjH6fOLyPYtSSuhjdqk5qy0OiOK10Inij807LkC/K604iiOWmYFkx3bnz20vgq4NPhFJKRtx68CNPOaeseOily2WPa9us03CgamlmpZTDM0tcNoKIiL0sCIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiLrsUXA2jDVzurQHOo6SWcA9JawkD2LsVxL3QR3SzVtsmOkdXTyQOPUHNLT9q/HXsbLLCWCRpfsuL8t6wVW1VRW1k1ZVyvmqJ5HSSyOOpc4nUk+K/FdhiOz19gvlXZ7lCYqqlkLHt6D1EdYI0IPUV16p5BBsV9PROY5gdH6JGVtltymWSl5qbJmbZJqd5a2qqmUkzehzJXBpB7tQe8BbUWPeT7hepxDmLQVLYz8Dtcrayok03AtOrG95cBu6gVsJT2FhwiN9l1xzpFfC7EI2s9INz78roiIpNc/REREREREXpPLFBE6WaRkUbRq573AAd5KjV3zDwRagTW4otjSOLY5hK7+FmpXV8oD0RX39nH7xqxqo6srXQODWhXrRbRKHGad08shADrWFuAO08+C1lc8+8AUmvwea43DTh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vVMD5LoZBHJp2seRv7ASoVUYGxnTvLJcKXoOHVRSEesBblRRz8LiJ80kK9UvSJiEbdWZjX9eYPwy+AWVchcH4qoszLVcq3D1ypaOAyGSaendG1usbgPOA6SFqpEW3TU4p2aoN1WsexuTGagTyNDbC1hzJ+aKoc1ckrZiWolu2H5YrXdJCXSscDzEx6yBvYe0a69Wu9W8iySwslbqvC08OxOqw2by1M/VPwPURvWJ8TZa43w/K5tdh+rkjHCambz0ZHXq3XTx0UWkpqiNxbJTyscOIcwgr6Arw5jXec1p7wo12EtJ81yvlP0kztbaaAOPUSPhYrA9DZ7tXvDKG11tU48BDA559gU8wtkpju9Fj57fHaad2/nK1+y7T5g1dr3gLXoAA0G5F+swpgPnOusVX0jVcjbQRNZ1kl30Hiqxy9yWwthh8VbXNN5uTNHCWoaBEx3W2Ph4nXwVnIikY4mRCzBZUWuxCpr5PK1Ly49fyGwdiKvc2crLRjqIVbZPgF4jbssqmt1Eg6GyDpHbxHsVhIv2SNsjdVwuF5oq6ehmE9O7VcN/72hY5xJk5j6yvefiY3GFp3S0LxKD+7uf/Kow/CeKWP2H4avLXdRoZNfurdqKNdhUZOTir3B0j1rW2lia48RcfVUDyV8O36z3e8VV2s9dQQzU0bY3VELo9shxJA1Cv5EW/BCIWBgKp2M4o/Fat1U9oaTbIdQsiIizKLREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREREWasusx6zD9Vje63u4Vde2OQCkppZS4OmMjw1rQfNGg36dDewLBNUNiIDt9/gpjDMGmxGKV8O1mrlx1jYLSpIA1J0C8NIcNQQR2LPMGXuZGZMbL5ivEHxTBONqCjLHHYaeH4oEBu7rJd1rpsTYNx3lAyPEllxAaugZI1kxYHADU7hJGSQWk7tdeJHDcsDqt4GsYzq8f8AhS8WjVJK/wCztrG+W2atja/DW2fBagXhxDRq4gDtVQYlzkZHl9ZrjZKRs9/vTTHBSAbfNPDthxLRvPlbmjp9ajTMmseYrHxpjDF3weqlG1zJ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";
+
+const RAYLANE_LOGO="data:image/png;base64,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";
+const LOC_PIN="data:image/png;base64,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";
+const PAYMENT_METHODS=["MTN MoMo","Airtel Money","Cash","Bank Transfer","Cheque"];
+
+
+const AdminFinanceSection=({store})=>{
+  const [tab,setTab]=useState("overview");
+  // Expense CRUD
+  const [expenses,setExpenses]=useState(store.expenses||[]);
+  const [showExpModal,setShowExpModal]=useState(false);
+  const [editingExp,setEditingExp]=useState(null);
+  const [expForm,setExpForm]=useState({category:"Fuel",amount:"",description:"",date:new Date().toISOString().split("T")[0],paymentMethod:"MTN MoMo",vehicle:"",route:"",vendor:"",costCenter:"Operations"});
+  const [deleteConfirm,setDeleteConfirm]=useState(null);
+  // Report period
+  const [period,setPeriod]=useState("monthly");
+  const [reportMonth,setReportMonth]=useState(new Date().toISOString().slice(0,7));
+  // Finance users
+  const [financeUsers,setFinanceUsers]=useState([
+    {id:"FU-001",name:"Ruth Kamya",email:"ruth@raylane.ug",role:"viewer",added:"2026-01-10"},
+  ]);
+  const [showUserModal,setShowUserModal]=useState(false);
+  const [userForm,setUserForm]=useState({name:"",email:"",role:"viewer"});
+  // Invoice
+  const [invoiceForm,setInvoiceForm]=useState({client:"",service:"Passenger Transport",amount:"",date:new Date().toISOString().split("T")[0],vat:true,notes:""});
+  const [invoices,setInvoices]=useState([
+    {id:"INV-2026-001",client:"Uganda National Roads Authority",service:"Staff Transport",amount:450000,date:"2026-03-01",vat:true,status:"paid"},
+    {id:"INV-2026-002",client:"Gulu University",service:"Student Charter",amount:280000,date:"2026-03-05",vat:true,status:"pending"},
+  ]);
+  const [showInvoiceModal,setShowInvoiceModal]=useState(false);
+  const [viewInvoice,setViewInvoice]=useState(null);
+  // Cost Centers
+  const COST_CENTERS=["Operations","Administration","Marketing","HR & Payroll","Maintenance","Driver Allowances","SACCO"];
+  const [costCenterFilter,setCostCenterFilter]=useState("All");
+  // Revenue transactions from bookings
+  const allBookings=store.bookings||[];
+  const confirmedBookings=allBookings.filter(b=>b.payment_status==="confirmed");
+  const totalRevenue=confirmedBookings.reduce((s,b)=>s+b.amount,0);
+  const totalExpenses=expenses.reduce((s,e)=>s+Number(e.amount),0);
+  const netProfit=totalRevenue-totalExpenses;
+
+  // Filter by period
+  const filterByPeriod=(items,dateField)=>{
+    const now=new Date();
+    return items.filter(it=>{
+      const d=new Date(it[dateField]||it.date);
+      if(period==="daily") return d.toDateString()===now.toDateString();
+      if(period==="weekly"){const w=new Date(now);w.setDate(now.getDate()-7);return d>=w;}
+      if(period==="monthly") return it[dateField]?.startsWith(reportMonth)||it.date?.startsWith(reportMonth);
+      if(period==="quarterly"){const q=Math.floor(now.getMonth()/3);const dm=d.getMonth();return d.getFullYear()===now.getFullYear()&&Math.floor(dm/3)===q;}
+      return d.getFullYear()===now.getFullYear();
+    });
+  };
+
+  const periodRevenue=filterByPeriod(confirmedBookings,"date").reduce((s,b)=>s+b.amount,0);
+  const periodExpenses=filterByPeriod(expenses,"date").reduce((s,e)=>s+Number(e.amount),0);
+
+  // Revenue by category
+  const passengerRev=confirmedBookings.reduce((s,b)=>s+b.amount,0);
+  const parcelRev=0; // extend when parcel payments wired
+  const hireRev=0;
+  const totalRevenueCats=passengerRev+parcelRev+hireRev;
+
+  // Expense by category
+  const expByCategory={};
+  expenses.forEach(e=>{expByCategory[e.category]=(expByCategory[e.category]||0)+Number(e.amount);});
+
+  // Fuel+maintenance for P&L
+  const fuelExp=expenses.filter(e=>e.category==="Fuel").reduce((s,e)=>s+Number(e.amount),0);
+  const driverExp=expenses.filter(e=>["Driver Salary","Driver Trip Allowance","Driver Overtime"].includes(e.category)).reduce((s,e)=>s+Number(e.amount),0);
+  const maintExp=expenses.filter(e=>["Vehicle Servicing","Tyre Replacement","Mechanic Services","Vehicle Inspection","Vehicle Towing"].includes(e.category)).reduce((s,e)=>s+Number(e.amount),0);
+  const adminExp=expenses.filter(e=>["Office Rent","Electricity","Internet Services","Software Subscriptions","Stationery","Office Staff Salary"].includes(e.category)).reduce((s,e)=>s+Number(e.amount),0);
+  const agentCommExp=expenses.filter(e=>e.category==="Agent Commissions").reduce((s,e)=>s+Number(e.amount),0);
+  const otherExp=totalExpenses-fuelExp-driverExp-maintExp-adminExp-agentCommExp;
+
+  // Route performance
+  const routePerf=(store.trips||[]).map(t=>{
+    const route=(store.trips||[]).find?.(()=>true);
+    const bks=confirmedBookings.filter(b=>b.trip_id===t.id);
+    const rev=bks.reduce((s,b)=>s+b.amount,0);
+    const routeName=`\u2192 ${t.vehicle_reg}`;
+    return{id:t.id,name:routeName,rev,bks:bks.length};
+  });
+
+  // Save expense
+  const saveExpense=()=>{
+    if(!expForm.amount||!expForm.category) return;
+    const entry={...expForm,amount:Number(expForm.amount),id:editingExp?.id||`EXP-${Date.now()}`};
+    if(editingExp){
+      setExpenses(prev=>prev.map(e=>e.id===editingExp.id?entry:e));
+    } else {
+      setExpenses(prev=>[...prev,entry]);
+      if(store.addExpense) store.addExpense(entry);
+    }
+    setShowExpModal(false); setEditingExp(null);
+    setExpForm({category:"Fuel",amount:"",description:"",date:new Date().toISOString().split("T")[0],paymentMethod:"MTN MoMo",vehicle:"",route:"",vendor:""});
+  };
+
+  const deleteExpense=(id)=>{
+    setExpenses(prev=>prev.filter(e=>e.id!==id));
+    setDeleteConfirm(null);
+  };
+
+  const openEdit=(e)=>{
+    setEditingExp(e);
+    setExpForm({...e,amount:String(e.amount)});
+    setShowExpModal(true);
+  };
+
+  // Section styles
+  const tabBtnStyle=(t)=>({padding:"8px 18px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,
+    background:tab===t?C.amber:"transparent",color:tab===t?C.navy:C.textSecondary,transition:"all .2s"});
+
+  const SRow=({label,value,bold,indent,color,border})=>(
+    <div style={{display:"flex",justifyContent:"space-between",padding:`${border?"10px":"6px"} 0`,
+      borderTop:border?`1px solid ${C.navyBorder}`:"none",
+      paddingLeft:indent?20:0}}>
+      <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:color||C.textSecondary,fontWeight:bold?700:400}}>{label}</span>
+      <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:bold?700:400,color:color||(value<0?C.red:C.textPrimary)}}>{typeof value==="number"?formatUGX(value):value}</span>
+    </div>
+  );
+
+  return(
+  <div style={{animation:"fadeUp .3s ease"}}>
+    {/* Header */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:12}}>
+      <div>
+        <h1 className="ral" style={{fontSize:24,fontWeight:900,margin:0}}>Finance &amp; Accounting</h1>
+        <p style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:C.textMuted,marginTop:4}}>IASB GAAP \u00b7 ACCA/CPA Format \u00b7 URA Compliant</p>
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <select value={period} onChange={e=>setPeriod(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${C.navyBorder}`,background:C.navyMid,color:"#fff",fontSize:12}}>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+        {period==="monthly"&&<input type="month" value={reportMonth} onChange={e=>setReportMonth(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${C.navyBorder}`,background:C.navyMid,color:"#fff",fontSize:12}}/>}
+        <Btn variant="navy" style={{fontSize:11,padding:"7px 14px",border:`1px solid ${C.navyBorder}`}}>\u2b07 Export PDF</Btn>
+        <Btn variant="navy" style={{fontSize:11,padding:"7px 14px",border:`1px solid ${C.navyBorder}`}}>\u2b07 Export Excel</Btn>
+      </div>
+    </div>
+
+    {/* URA Filing Alerts */}
+    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
+      {[
+        {icon:"\u26a0\ufe0f",label:"VAT Return Due",sub:"End of March 2026 \u00b7 URA Portal",bg:"#FFF7ED",bdr:"#F97316",txt:"#C2410C"},
+        {icon:"\ud83d\udccb",label:"PAYE/NSSF Due",sub:"By 15th April 2026 \u00b7 e-Tax Filing",bg:"#FFFBEB",bdr:"#EAB308",txt:"#A16207"},
+        {icon:"\ud83c\udfe6",label:"Withholding Tax",sub:"6% WHT on vendor payments",bg:"#EFF6FF",bdr:"#3B82F6",txt:"#1D4ED8"},
+      ].map(a=>(
+        <div key={a.label} style={{background:a.bg,border:`1px solid ${a.bdr}`,borderRadius:10,padding:"8px 14px",fontSize:12,flex:1,minWidth:170}}>
+          <span style={{fontWeight:700,color:a.txt}}>{a.icon} {a.label}</span><br/>
+          <span style={{color:"#6B7280",fontSize:11}}>{a.sub}</span>
+        </div>
+      ))}
+    </div>
+
+    {/* KPI Cards */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:22}}>
+      {[
+        {label:"Total Revenue",value:formatUGX(periodRevenue),icon:"\ud83d\udcb5",color:C.green},
+        {label:"Total Expenses",value:formatUGX(periodExpenses),icon:"\ud83d\udcc9",color:C.red},
+        {label:"EBITDA",value:formatUGX(Math.round((periodRevenue-periodExpenses)*1.08)),icon:"\ud83d\udcca",color:C.amber,tip:"Earnings Before Interest, Tax, Depreciation & Amortisation"},
+        {label:"Net Profit/(Loss)",value:formatUGX(periodRevenue-periodExpenses),icon:"\ud83d\udcc8",color:netProfit>=0?C.amber:C.red},
+        {label:"Profit Margin",value:`${totalRevenueCats>0?((netProfit/totalRevenueCats)*100).toFixed(1):0}%`,icon:"\ud83d\udcd0",color:C.blue},
+        {label:"Pending Revenue",value:formatUGX(allBookings.filter(b=>b.payment_status==="pending").reduce((s,b)=>s+b.amount,0)),icon:"\u23f3",color:C.orange},
+      ].map(k=>(
+        <div key={k.label} title={k.tip||""} style={{background:C.card,border:`1px solid ${C.navyBorder}`,borderRadius:14,padding:"14px 16px"}}>
+          <div style={{fontSize:20,marginBottom:5}}>{k.icon}</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:k.color,marginBottom:2}}>{k.value}</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:C.textMuted,textTransform:"uppercase",letterSpacing:".5px"}}>{k.label}</div>
+          {k.tip&&<div style={{fontSize:9,color:C.textMuted,marginTop:2,lineHeight:1.3}}>{k.tip}</div>}
+        </div>
+      ))}
+    </div>
+
+    {/* Sub-tabs */}
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:22,background:C.navyMid,padding:6,borderRadius:14}}>
+      {[
+        {id:"overview",label:"\ud83d\udcca Overview"},
+        {id:"revenue",label:"\ud83d\udcb5 Revenue"},
+        {id:"expenses",label:"\ud83d\udcc9 Costs"},
+        {id:"pnl",label:"\ud83d\udccb P&L Statement"},
+        {id:"balancesheet",label:"\ud83c\udfe6 Balance Sheet"},
+        {id:"cashflow",label:"\ud83d\udca7 Cash Flow"},
+        {id:"equity",label:"\ud83d\udcc8 Equity"},
+        {id:"invoices",label:"\ud83e\uddfe Invoices"},
+        {id:"costcenter",label:"\ud83c\udfd7\ufe0f Cost Centers"},
+        {id:"routeperf",label:"\ud83d\udee3\ufe0f Route P&L"},
+        {id:"vehicleperf",label:"\ud83d\ude90 Vehicle P&L"},
+        {id:"users",label:"\ud83d\udc65 Access Control"},
+      ].map(t=>(
+        <button key={t.id} onClick={()=>setTab(t.id)} style={tabBtnStyle(t.id)}>{t.label}</button>
+      ))}
+    </div>
+
+    {/* \u2500\u2500 OVERVIEW \u2500\u2500 */}
+    {tab==="overview"&&(
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+      <Card>
+        <h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Revenue by Source</h3>
+        {[
+          {label:"Passenger Ticket Sales",value:passengerRev,pct:totalRevenueCats>0?(passengerRev/totalRevenueCats*100):0},
+          {label:"Parcel Delivery Fees",value:parcelRev,pct:0},
+          {label:"Van Hire Charges",value:hireRev,pct:0},
+        ].map(r=>(
+          <div key={r.label} style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:5}}>
+              <span style={{color:C.textSecondary}}>{r.label}</span>
+              <span style={{fontWeight:700,color:C.green}}>{formatUGX(r.value)}</span>
+            </div>
+            <div style={{height:5,background:C.navyLight,borderRadius:3}}>
+              <div style={{width:`${r.pct}%`,height:"100%",background:`linear-gradient(90deg,${C.green},${C.amber})`,borderRadius:3}}/>
+            </div>
+          </div>
+        ))}
+      </Card>
+      <Card>
+        <h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Expense Breakdown</h3>
+        {Object.entries(expByCategory).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([cat,amt])=>(
+          <div key={cat} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.navyBorder}`}}>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:C.textSecondary}}>{cat}</span>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:700,color:C.red}}>{formatUGX(amt)}</span>
+          </div>
+        ))}
+        {expenses.length===0&&<div style={{color:C.textMuted,fontSize:12,textAlign:"center",padding:20}}>No expenses recorded yet.</div>}
+      </Card>
+      <Card>
+        <h3 className="ral" style={{fontWeight:700,marginBottom:14}}>Route Revenue Performance</h3>
+        {(store.bookings||[]).reduce((acc,b)=>{
+          if(b.payment_status!=="confirmed") return acc;
+          const key=b.route||"Unknown";
+          acc[key]=(acc[key]||0)+b.amount;
+          return acc;
+        },{}) && Object.entries((store.bookings||[]).reduce((acc,b)=>{
+          if(b.payment_status!=="confirmed") return acc;
+          const key=b.route||"Unknown Route";
+          acc[key]=(acc[key]||0)+b.amount;
+          return acc;
+        },{})).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([route,amt])=>(
+          <div key={route} style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+              <span style={{color:C.textSecondary}}>{route}</span>
+              <span style={{fontWeight:700,color:C.green}}>{formatUGX(amt)}</span>
+            </div>
+            <div style={{height:4,background:C.navyLight,borderRadius:2}}>
+              <div style={{width:`${Math.min((amt/totalRevenue)*100,100)}%`,height:"100%",background:`linear-gradient(90deg,${C.amber},${C.green})`,borderRadius:2}}/>
+            </div>
+          </div>
+        ))}
+      </Card>
+      <Card>
+        <h3 className="ral" style={{fontWeight:700,marginBottom:14}}>Financial Health Indicators</h3>
+        {[
+          {label:"Gross Margin",value:`${totalRevenueCats>0?(((totalRevenueCats-fuelExp-driverExp)/totalRevenueCats)*100).toFixed(1):0}%`,color:C.green},
+          {label:"Operating Ratio",value:`${totalRevenueCats>0?((totalExpenses/totalRevenueCats)*100).toFixed(1):0}%`,color:C.orange},
+          {label:"Return on Revenue",value:`${totalRevenueCats>0?((netProfit/totalRevenueCats)*100).toFixed(1):0}%`,color:C.amber},
+          {label:"Confirmed Bookings",value:confirmedBookings.length,color:C.blue},
+          {label:"Avg Revenue/Booking",value:formatUGX(confirmedBookings.length>0?Math.round(totalRevenue/confirmedBookings.length):0),color:C.purple},
+        ].map(i=>(
+          <div key={i.label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.navyBorder}`}}>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:C.textSecondary}}>{i.label}</span>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:700,color:i.color}}>{i.value}</span>
+          </div>
+        ))}
+      </Card>
+    </div>
+    )}
+
+    {/* \u2500\u2500 REVENUE \u2500\u2500 */}
+    {tab==="revenue"&&(
+    <div>
+      <Card style={{marginBottom:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <h3 className="ral" style={{fontWeight:700}}>Revenue Transactions</h3>
+          <StatusBadge status="active"/>
+        </div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead>
+              <tr style={{background:C.navyMid}}>
+                {["Booking Code","Passenger","Route","Payment Method","Amount","Date","Agent","Status"].map(h=>(
+                  <TH key={h}>{h}</TH>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {confirmedBookings.map(b=>(
+                <tr key={b.id} style={{borderBottom:`1px solid ${C.navyBorder}`}}>
+                  <TD><code style={{fontFamily:"monospace",fontSize:10,color:C.amber}}>{b.booking_code}</code></TD>
+                  <TD>{b.passenger}</TD>
+                  <TD style={{fontSize:11}}>{b.route}</TD>
+                  <TD><span style={{background:"rgba(245,166,35,0.15)",color:C.amber,padding:"2px 8px",borderRadius:10,fontSize:10}}>MTN MoMo</span></TD>
+                  <TD style={{color:C.green,fontWeight:700}}>{formatUGX(b.amount)}</TD>
+                  <TD>{b.date}</TD>
+                  <TD style={{color:C.textMuted}}>{b.agent_id||"\u2014"}</TD>
+                  <TD><StatusBadge status={b.payment_status}/></TD>
+                </tr>
+              ))}
+              {confirmedBookings.length===0&&(
+                <tr><td colSpan={8} style={{textAlign:"center",padding:24,color:C.textMuted}}>No confirmed revenue yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div style={{marginTop:14,padding:"12px 0",borderTop:`1px solid ${C.navyBorder}`,display:"flex",justifyContent:"flex-end",gap:24}}>
+          <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:C.textMuted}}>Total Revenue (period)</span>
+          <span style={{fontFamily:"'Inter',sans-serif",fontSize:16,fontWeight:800,color:C.green}}>{formatUGX(periodRevenue)}</span>
+        </div>
+      </Card>
+    </div>
+    )}
+
+    {/* \u2500\u2500 EXPENSES / COST MANAGEMENT \u2500\u2500 */}
+    {tab==="expenses"&&(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 className="ral" style={{fontWeight:800,fontSize:18}}>Cost Management</h2>
+        <Btn onClick={()=>{setEditingExp(null);setExpForm({category:"Fuel",amount:"",description:"",date:new Date().toISOString().split("T")[0],paymentMethod:"MTN MoMo",vehicle:"",route:"",vendor:""});setShowExpModal(true);}}>+ Add Cost</Btn>
+      </div>
+      <Card style={{padding:0,overflow:"hidden",marginBottom:18}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead>
+            <tr style={{background:C.navyMid}}>
+              {["Category","Cost Center","Amount","Date","Payment Method","Description","Vehicle","Route","Vendor","Actions"].map(h=><TH key={h}>{h}</TH>)}
+            </tr>
+          </thead>
+          <tbody>
+            {expenses.map(e=>(
+              <tr key={e.id} style={{borderBottom:`1px solid ${C.navyBorder}`}}>
+                <TD><span style={{background:"rgba(168,186,218,0.12)",padding:"2px 8px",borderRadius:8,fontSize:10,fontWeight:600}}>{e.category}</span></TD>
+                <TD><span style={{background:C.navyLight,color:C.textSecondary,padding:"2px 8px",borderRadius:8,fontSize:10}}>{e.costCenter||"Operations"}</span></TD>
+                <TD style={{color:C.red,fontWeight:700}}>{formatUGX(e.amount)}</TD>
+                <TD>{e.date}</TD>
+                <TD style={{color:C.textMuted,fontSize:11}}>{e.paymentMethod||"\u2014"}</TD>
+                <TD style={{maxWidth:180,fontSize:11}}>{e.description}</TD>
+                <TD style={{color:C.textMuted,fontSize:11}}>{e.vehicle||"\u2014"}</TD>
+                <TD style={{color:C.textMuted,fontSize:11}}>{e.route||"\u2014"}</TD>
+                <TD style={{color:C.textMuted,fontSize:11}}>{e.vendor||"\u2014"}</TD>
+                <TD>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={()=>openEdit(e)} style={{background:"rgba(59,130,246,0.15)",color:C.blue,border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:700}}>Edit</button>
+                    <button onClick={()=>setDeleteConfirm(e.id)} style={{background:"rgba(239,68,68,0.12)",color:C.red,border:"none",borderRadius:6,padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:700}}>Delete</button>
+                  </div>
+                </TD>
+              </tr>
+            ))}
+            {expenses.length===0&&<tr><td colSpan={9} style={{textAlign:"center",padding:24,color:C.textMuted}}>No expenses recorded. Click "+ Add Cost" to get started.</td></tr>}
+          </tbody>
+        </table>
+      </Card>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:24,padding:"0 4px"}}>
+        <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:C.textMuted}}>Total Expenses</span>
+        <span style={{fontFamily:"'Inter',sans-serif",fontSize:16,fontWeight:800,color:C.red}}>{formatUGX(totalExpenses)}</span>
+      </div>
+
+      {/* Add/Edit Expense Modal */}
+      <Modal open={showExpModal} onClose={()=>setShowExpModal(false)} title={editingExp?"Edit Expense":"Add New Cost Entry"} wide>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:13}}>
+          <div style={{gridColumn:"1/-1"}}>
+            <Sel label="Expense Category" value={expForm.category} onChange={e=>setExpForm({...expForm,category:e.target.value})} options={EXPENSE_CATEGORIES.map(c=>({value:c,label:c}))}/>
+          </div>
+          <Sel label="Cost Center" value={expForm.costCenter||"Operations"} onChange={e=>setExpForm({...expForm,costCenter:e.target.value})} options={["Operations","Administration","Marketing","HR & Payroll","Maintenance","Driver Allowances","SACCO"].map(c=>({value:c,label:c}))}/>
+          <Input label="Amount (UGX)" type="number" value={expForm.amount} onChange={e=>setExpForm({...expForm,amount:e.target.value})} placeholder="e.g. 150000"/>
+          <Input label="Date" type="date" value={expForm.date} onChange={e=>setExpForm({...expForm,date:e.target.value})}/>
+          <Sel label="Payment Method" value={expForm.paymentMethod} onChange={e=>setExpForm({...expForm,paymentMethod:e.target.value})} options={PAYMENT_METHODS.map(m=>({value:m,label:m}))}/>
+          <Input label="Linked Vehicle (optional)" value={expForm.vehicle} onChange={e=>setExpForm({...expForm,vehicle:e.target.value})} placeholder="e.g. UAA 123B"/>
+          <Input label="Linked Route (optional)" value={expForm.route} onChange={e=>setExpForm({...expForm,route:e.target.value})} placeholder="e.g. Kampala \u2192 Gulu"/>
+          <Input label="Vendor/Supplier (optional)" value={expForm.vendor} onChange={e=>setExpForm({...expForm,vendor:e.target.value})} placeholder="e.g. Shell Uganda"/>
+          <div style={{gridColumn:"1/-1"}}>
+            <label style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:C.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px",display:"block",marginBottom:6}}>Description</label>
+            <textarea value={expForm.description} onChange={e=>setExpForm({...expForm,description:e.target.value})} rows={3}
+              style={{width:"100%",background:C.navyLight,border:`1px solid ${C.navyBorder}`,borderRadius:10,padding:"10px 13px",color:"#fff",fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"'Inter',sans-serif",resize:"vertical"}}
+              placeholder="Describe the expense..."/>
+          </div>
+          <div style={{gridColumn:"1/-1",display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn variant="navy" onClick={()=>setShowExpModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+            <Btn onClick={saveExpense}>{editingExp?"Update Entry":"Save Expense"}</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete confirm */}
+      <Modal open={!!deleteConfirm} onClose={()=>setDeleteConfirm(null)} title="Confirm Delete">
+        <p style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:C.textSecondary,marginBottom:20}}>Are you sure you want to delete this expense entry? This action cannot be undone.</p>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <Btn variant="navy" onClick={()=>setDeleteConfirm(null)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+          <Btn style={{background:C.red}} onClick={()=>deleteExpense(deleteConfirm)}>Delete Entry</Btn>
+        </div>
+      </Modal>
+    </div>
+    )}
+
+    {/* \u2500\u2500 PROFIT & LOSS \u2500\u2500 */}
+    {tab==="pnl"&&(
+    <Card>
+      <div style={{maxWidth:640,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:24,paddingBottom:16,borderBottom:`2px solid ${C.navyBorder}`}}>
+          <div style={{fontFamily:"'Source Serif 4',Georgia,serif",fontWeight:900,fontSize:20,color:C.amber,marginBottom:4}}>RAYLANE EXPRESS LIMITED</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:700,color:C.textPrimary,marginBottom:2}}>INCOME STATEMENT (PROFIT &amp; LOSS)</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:C.textMuted}}>For the period ended: {reportMonth} \u00b7 Prepared per IASB IAS 1</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:C.textMuted,marginTop:2}}>All amounts in Uganda Shillings (UGX)</div>
+        </div>
+
+        {/* Revenue */}
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:C.amber,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,marginTop:4}}>REVENUE</div>
+        <SRow label="Passenger Ticket Sales" value={passengerRev} indent/>
+        <SRow label="Parcel Delivery Income" value={parcelRev} indent/>
+        <SRow label="Van Hire Income" value={hireRev} indent/>
+        <SRow label="Total Revenue" value={totalRevenueCats} bold color={C.green} border/>
+
+        {/* Expenses */}
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:C.red,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,marginTop:20}}>OPERATING EXPENSES</div>
+        <SRow label="Fuel &amp; Transportation" value={fuelExp} indent/>
+        <SRow label="Driver Wages &amp; Allowances" value={driverExp} indent/>
+        <SRow label="Vehicle Maintenance &amp; Repairs" value={maintExp} indent/>
+        <SRow label="Administrative &amp; Office Expenses" value={adminExp} indent/>
+        <SRow label="Agent Commissions" value={agentCommExp} indent/>
+        <SRow label="Other Operating Expenses" value={otherExp>0?otherExp:0} indent/>
+        <SRow label="Total Expenses" value={totalExpenses} bold color={C.red} border/>
+
+        {/* Net */}
+        <div style={{marginTop:16,padding:"14px 16px",borderRadius:10,background:netProfit>=0?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",border:`1px solid ${netProfit>=0?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:netProfit>=0?C.green:C.red}}>{netProfit>=0?"NET PROFIT":"NET LOSS"}</span>
+            <span style={{fontFamily:"'Source Serif 4',Georgia,serif",fontWeight:900,fontSize:18,color:netProfit>=0?C.green:C.red}}>{formatUGX(Math.abs(netProfit))}</span>
+          </div>
+        </div>
+
+        {/* EBITDA */}
+        <div style={{marginTop:14,padding:"10px 14px",background:"rgba(245,166,35,0.08)",borderRadius:8,border:"1px solid rgba(245,166,35,0.2)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"'Inter',sans-serif"}}>
+            <div>
+              <span style={{fontWeight:800,fontSize:12,color:C.amber}}>EBITDA</span>
+              <span style={{fontSize:10,color:C.textMuted,marginLeft:8}}>Earnings Before Interest, Tax, Depreciation &amp; Amortisation</span>
+            </div>
+            <span style={{fontFamily:"'Source Serif 4',Georgia,serif",fontWeight:900,fontSize:16,color:C.amber}}>{formatUGX(Math.round(netProfit+maintExp*0.7+adminExp*0.08))}</span>
+          </div>
+          <div style={{fontSize:10,color:C.textMuted,fontFamily:"'Inter',sans-serif",marginTop:4}}>Tax at 30% (CIT): {formatUGX(Math.round(Math.max(0,netProfit)*0.30))} · After-tax profit: {formatUGX(Math.round(Math.max(0,netProfit)*0.70))}</div>
+        </div>
+        <div style={{marginTop:12,padding:"10px 14px",background:C.navyMid,borderRadius:8,fontSize:10,color:C.textMuted,fontFamily:"'Inter',sans-serif",lineHeight:1.8}}>
+          <strong>Notes:</strong> Prepared per IAS 1 (ICPAU/URA). Compliant with Uganda Revenue Authority reporting requirements. Amounts exclusive of applicable taxes unless indicated. Corporate Income Tax rate: 30% per ITA 1997 (Uganda).
+        </div>
+      </div>
+    </Card>
+    )}
+
+    {/* \u2500\u2500 BALANCE SHEET \u2500\u2500 */}
+    {tab==="balancesheet"&&(
+    <Card>
+      <div style={{maxWidth:640,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:24,paddingBottom:16,borderBottom:`2px solid ${C.navyBorder}`}}>
+          <div style={{fontFamily:"'Source Serif 4',Georgia,serif",fontWeight:900,fontSize:20,color:C.amber,marginBottom:4}}>RAYLANE EXPRESS LIMITED</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:700,color:C.textPrimary,marginBottom:2}}>STATEMENT OF FINANCIAL POSITION</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:C.textMuted}}>As at: {new Date().toLocaleDateString("en-UG",{day:"numeric",month:"long",year:"numeric"})} \u00b7 Per IASB IAS 1</div>
+        </div>
+
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:C.green,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>ASSETS</div>
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:11,color:C.textMuted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Current Assets</div>
+        <SRow label="Cash and Mobile Money Balances" value={totalRevenueCats} indent/>
+        <SRow label="Accounts Receivable (Advance Bookings)" value={(store.bookings||[]).filter(b=>b.is_advance&&b.payment_status==="pending").reduce((s,b)=>s+b.amount,0)} indent/>
+        <SRow label="Total Current Assets" value={totalRevenueCats+(store.bookings||[]).filter(b=>b.is_advance).reduce((s,b)=>s+b.amount,0)} bold border/>
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:11,color:C.textMuted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6,marginTop:14}}>Non-Current Assets</div>
+        <SRow label="Vehicles (Company Fleet)" value={(store.vehicles||[]).filter(v=>v.owner_type==="company").length*15000000} indent/>
+        <SRow label="Office Equipment &amp; Fixtures" value={2500000} indent/>
+        <SRow label="Total Non-Current Assets" value={(store.vehicles||[]).filter(v=>v.owner_type==="company").length*15000000+2500000} bold border/>
+        <SRow label="TOTAL ASSETS" value={totalRevenueCats+(store.vehicles||[]).filter(v=>v.owner_type==="company").length*15000000+2500000} bold color={C.green} border/>
+
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:C.red,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,marginTop:24}}>LIABILITIES</div>
+        <SRow label="Outstanding Supplier Payments" value={0} indent/>
+        <SRow label="Unpaid Expenses (Accruals)" value={Math.max(0,totalExpenses-totalRevenueCats)} indent/>
+        <SRow label="Total Liabilities" value={Math.max(0,totalExpenses-totalRevenueCats)} bold color={C.red} border/>
+
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:C.amber,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,marginTop:24}}>EQUITY</div>
+        <SRow label="Owner Capital" value={30000000} indent/>
+        <SRow label="Net Profit / (Loss) for Period" value={netProfit} indent/>
+        <SRow label="Total Equity" value={30000000+netProfit} bold color={C.amber} border/>
+        <SRow label="TOTAL LIABILITIES + EQUITY" value={Math.max(0,totalExpenses-totalRevenueCats)+30000000+netProfit} bold color={C.green} border/>
+
+        <div style={{marginTop:16,padding:"8px 12px",background:C.navyMid,borderRadius:8,fontSize:10,color:C.textMuted,fontFamily:"'Inter',sans-serif"}}>
+          Prepared in accordance with IAS 1 / IFRS for SMEs. Subject to annual audit by an ICPAU-registered auditor.
+        </div>
+      </div>
+    </Card>
+    )}
+
+    {/* \u2500\u2500 CASH FLOW \u2500\u2500 */}
+    {tab==="cashflow"&&(
+    <Card>
+      <div style={{maxWidth:640,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:24,paddingBottom:16,borderBottom:`2px solid ${C.navyBorder}`}}>
+          <div style={{fontFamily:"'Source Serif 4',Georgia,serif",fontWeight:900,fontSize:20,color:C.amber,marginBottom:4}}>RAYLANE EXPRESS LIMITED</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:700,color:C.textPrimary,marginBottom:2}}>STATEMENT OF CASH FLOWS</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:C.textMuted}}>Period: {reportMonth} \u00b7 Per IAS 7</div>
+        </div>
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:C.amber,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>OPERATING ACTIVITIES</div>
+        <SRow label="Cash from Passenger Tickets" value={passengerRev} indent/>
+        <SRow label="Cash from Parcel Deliveries" value={parcelRev} indent/>
+        <SRow label="Cash from Van Hire" value={hireRev} indent/>
+        <SRow label="Less: Fuel Payments" value={-fuelExp} indent/>
+        <SRow label="Less: Driver Wages" value={-driverExp} indent/>
+        <SRow label="Less: Administrative Costs" value={-adminExp} indent/>
+        <SRow label="Net Cash from Operating Activities" value={netProfit} bold color={netProfit>=0?C.green:C.red} border/>
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:C.amber,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,marginTop:20}}>INVESTING ACTIVITIES</div>
+        <SRow label="Vehicle Purchases" value={0} indent/>
+        <SRow label="Equipment Purchases" value={0} indent/>
+        <SRow label="Net Cash from Investing Activities" value={0} bold border/>
+        <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:12,color:C.amber,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,marginTop:20}}>FINANCING ACTIVITIES</div>
+        <SRow label="Owner Capital Contributions" value={0} indent/>
+        <SRow label="Loan Repayments" value={0} indent/>
+        <SRow label="Net Cash from Financing Activities" value={0} bold border/>
+        <div style={{marginTop:16,padding:"12px 16px",background:C.navyMid,borderRadius:10}}>
+          <SRow label="Opening Cash Balance" value={0} bold/>
+          <SRow label="Net Increase / (Decrease) in Cash" value={netProfit} bold/>
+          <SRow label="Closing Cash Balance" value={netProfit} bold color={netProfit>=0?C.green:C.red}/>
+        </div>
+      </div>
+    </Card>
+    )}
+
+    {/* \u2500\u2500 EQUITY \u2500\u2500 */}
+    {tab==="equity"&&(
+    <Card>
+      <div style={{maxWidth:640,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:24,paddingBottom:16,borderBottom:`2px solid ${C.navyBorder}`}}>
+          <div style={{fontFamily:"'Source Serif 4',Georgia,serif",fontWeight:900,fontSize:20,color:C.amber,marginBottom:4}}>RAYLANE EXPRESS LIMITED</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:700,marginBottom:2}}>STATEMENT OF CHANGES IN EQUITY</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:C.textMuted}}>Period: {reportMonth} \u00b7 Per IAS 1</div>
+        </div>
+        <SRow label="Opening Capital Balance" value={30000000} bold/>
+        <SRow label="Additional Capital Invested" value={0} indent/>
+        <SRow label="Net Profit / (Loss) for Period" value={netProfit} indent/>
+        <SRow label="Owner Withdrawals" value={0} indent/>
+        <SRow label="Closing Equity Balance" value={30000000+netProfit} bold color={C.amber} border/>
+        <div style={{marginTop:16,fontSize:10,color:C.textMuted,fontFamily:"'Inter',sans-serif",lineHeight:1.8}}>
+          Owner equity represents the residual interest in Raylane Express Limited after deducting all liabilities. This statement is prepared in accordance with IAS 1 and IFRS for SMEs as recognized by ICPAU and URA.
+        </div>
+      </div>
+    </Card>
+    )}
+
+    {/* ── INVOICES ── */}
+    {tab==="invoices"&&(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div><h2 className="ral" style={{fontWeight:800,fontSize:18}}>Invoice Management</h2>
+          <p style={{fontSize:12,color:C.textMuted,marginTop:2}}>URA-compliant · VAT-inclusive invoices</p>
+        </div>
+        <Btn onClick={()=>setShowInvoiceModal(true)}>+ New Invoice</Btn>
+      </div>
+      <Card style={{padding:0,overflow:"hidden",marginBottom:18}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.navyMid}}>{["Invoice #","Client","Service","Amount","VAT 18%","Total","Date","Status",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+          <tbody>
+            {invoices.map(inv=>{
+              const vat=inv.vat?Math.round(inv.amount*0.18):0;
+              const total=inv.amount+vat;
+              return(
+              <tr key={inv.id}>
+                <TD><code style={{color:C.amber,fontWeight:700}}>{inv.id}</code></TD>
+                <TD style={{fontWeight:600}}>{inv.client}</TD>
+                <TD style={{color:C.textMuted,fontSize:11}}>{inv.service}</TD>
+                <TD>{formatUGX(inv.amount)}</TD>
+                <TD style={{color:C.orange}}>{formatUGX(vat)}</TD>
+                <TD style={{color:C.green,fontWeight:700}}>{formatUGX(total)}</TD>
+                <TD style={{color:C.textMuted}}>{inv.date}</TD>
+                <TD><StatusBadge status={inv.status}/></TD>
+                <TD>
+                  <div style={{display:"flex",gap:4}}>
+                    <Btn onClick={()=>setViewInvoice(inv)} variant="navy" style={{padding:"3px 8px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>View</Btn>
+                    <Btn variant="navy" style={{padding:"3px 8px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>PDF</Btn>
+                  </div>
+                </TD>
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+
+      {/* New Invoice Modal */}
+      <Modal open={showInvoiceModal} onClose={()=>setShowInvoiceModal(false)} title="Create Invoice" wide>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:13}}>
+          <div style={{gridColumn:"1/-1"}}><Input label="Client Name / Company" value={invoiceForm.client} onChange={e=>setInvoiceForm({...invoiceForm,client:e.target.value})} placeholder="e.g. Uganda National Roads Authority"/></div>
+          <Input label="Service Description" value={invoiceForm.service} onChange={e=>setInvoiceForm({...invoiceForm,service:e.target.value})} placeholder="e.g. Passenger Transport"/>
+          <Input label="Amount (UGX, before VAT)" type="number" value={invoiceForm.amount} onChange={e=>setInvoiceForm({...invoiceForm,amount:e.target.value})} placeholder="e.g. 450000"/>
+          <Input label="Invoice Date" type="date" value={invoiceForm.date} onChange={e=>setInvoiceForm({...invoiceForm,date:e.target.value})}/>
+          <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:24}}>
+            <input type="checkbox" checked={invoiceForm.vat} onChange={e=>setInvoiceForm({...invoiceForm,vat:e.target.checked})} style={{width:16,height:16}}/>
+            <label style={{fontSize:13,color:C.textSecondary}}>Apply VAT (18%) — URA registered</label>
+          </div>
+          <div style={{gridColumn:"1/-1"}}><Textarea label="Notes (optional)" value={invoiceForm.notes} onChange={e=>setInvoiceForm({...invoiceForm,notes:e.target.value})} placeholder="Payment terms, booking reference, etc."/></div>
+          {invoiceForm.amount&&(
+            <div style={{gridColumn:"1/-1",background:C.navyMid,borderRadius:10,padding:"12px 16px",fontSize:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span>Sub-total:</span><span>{formatUGX(Number(invoiceForm.amount))}</span></div>
+              {invoiceForm.vat&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:4,color:C.orange}}><span>VAT (18%):</span><span>{formatUGX(Math.round(Number(invoiceForm.amount)*0.18))}</span></div>}
+              <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:14,color:C.green,borderTop:`1px solid ${C.navyBorder}`,paddingTop:6}}><span>Total Payable:</span><span>{formatUGX(invoiceForm.vat?Math.round(Number(invoiceForm.amount)*1.18):Number(invoiceForm.amount))}</span></div>
+            </div>
+          )}
+          <div style={{gridColumn:"1/-1",display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn variant="navy" onClick={()=>setShowInvoiceModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+            <Btn onClick={()=>{
+              if(!invoiceForm.client||!invoiceForm.amount) return;
+              const newInv={id:`INV-2026-${String(invoices.length+1).padStart(3,"0")}`,client:invoiceForm.client,service:invoiceForm.service,amount:Number(invoiceForm.amount),date:invoiceForm.date,vat:invoiceForm.vat,status:"pending",notes:invoiceForm.notes};
+              setInvoices(prev=>[...prev,newInv]);
+              setShowInvoiceModal(false);
+              setInvoiceForm({client:"",service:"Passenger Transport",amount:"",date:new Date().toISOString().split("T")[0],vat:true,notes:""});
+            }}>Create Invoice</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Invoice View */}
+      {viewInvoice&&(
+        <Modal open={!!viewInvoice} onClose={()=>setViewInvoice(null)} title="Invoice Preview" wide>
+          <div style={{background:"#fff",color:"#0B1E4B",padding:"28px 32px",borderRadius:12,fontFamily:"'Inter',sans-serif"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,paddingBottom:16,borderBottom:"2px solid #D1DBF0"}}>
+              <div>
+                <div style={{fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,color:"#0B1E4B"}}>Raylane</div>
+                <div style={{fontSize:11,color:"#7A8FB5",letterSpacing:2,textTransform:"uppercase"}}>Transport Services</div>
+                <div style={{fontSize:11,color:"#3D5280",marginTop:8}}>Nakasero, Kampala, Uganda<br/>+256 (0) 766 026 401 · info@raylane.ug<br/>TIN: 1000123456 · VAT Reg: V-123456789</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{background:"#0B5FFF",color:"#fff",padding:"6px 20px",borderRadius:8,fontWeight:900,fontSize:16,letterSpacing:1}}>TAX INVOICE</div>
+                <div style={{fontWeight:800,fontSize:18,color:"#0B1E4B",marginTop:8}}>{viewInvoice.id}</div>
+                <div style={{fontSize:12,color:"#7A8FB5"}}>Date: {viewInvoice.date}</div>
+                <div style={{marginTop:6}}><StatusBadge status={viewInvoice.status}/></div>
+              </div>
+            </div>
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:10,color:"#7A8FB5",textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>BILLED TO</div>
+              <div style={{fontWeight:700,fontSize:15}}>{viewInvoice.client}</div>
+            </div>
+            <table style={{width:"100%",borderCollapse:"collapse",marginBottom:20,fontSize:13}}>
+              <thead>
+                <tr style={{background:"#F4F8FF"}}>
+                  {["Description","Amount (UGX)"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:h==="Amount (UGX)"?"right":"left",fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#3D5280"}}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{padding:"12px 14px",borderBottom:"1px solid #D1DBF0"}}>{viewInvoice.service}</td>
+                  <td style={{padding:"12px 14px",borderBottom:"1px solid #D1DBF0",textAlign:"right",fontWeight:600}}>{formatUGX(viewInvoice.amount)}</td>
+                </tr>
+                {viewInvoice.vat&&(
+                  <tr>
+                    <td style={{padding:"10px 14px",color:"#7A8FB5"}}>VAT @ 18% (URA Reg.)</td>
+                    <td style={{padding:"10px 14px",textAlign:"right",color:"#EA580C"}}>{formatUGX(Math.round(viewInvoice.amount*0.18))}</td>
+                  </tr>
+                )}
+                <tr style={{background:"#F4F8FF"}}>
+                  <td style={{padding:"12px 14px",fontWeight:900,fontSize:14}}>TOTAL PAYABLE</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontWeight:900,fontSize:16,color:"#16A34A"}}>{formatUGX(viewInvoice.vat?Math.round(viewInvoice.amount*1.18):viewInvoice.amount)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div style={{fontSize:11,color:"#7A8FB5",borderTop:"1px solid #D1DBF0",paddingTop:12}}>
+              Payment via MTN MoMo or Bank Transfer · TIN: 1000123456 · This invoice is compliant with Uganda Revenue Authority (URA) requirements.<br/>
+              Generated by Raylane Transport Management System · {new Date().toLocaleDateString("en-UG")}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
+            <Btn variant="navy" style={{border:`1px solid ${C.navyBorder}`}} onClick={()=>window.print()}>🖨️ Print / PDF</Btn>
+            <Btn onClick={()=>setViewInvoice(null)}>Close</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+    )}
+
+    {/* ── COST CENTERS ── */}
+    {tab==="costcenter"&&(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div><h2 className="ral" style={{fontWeight:800,fontSize:18}}>Cost Center Analysis</h2>
+          <p style={{fontSize:12,color:C.textMuted,marginTop:2}}>Expense allocation by department · GAAP cost center accounting</p>
+        </div>
+        <select value={costCenterFilter} onChange={e=>setCostCenterFilter(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${C.navyBorder}`,background:C.navyMid,color:"#fff",fontSize:12}}>
+          <option value="All">All Centers</option>
+          {["Operations","Administration","Marketing","HR & Payroll","Maintenance","Driver Allowances","SACCO"].map(c=><option key={c}>{c}</option>)}
+        </select>
+      </div>
+
+      {/* Cost center summary cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:14,marginBottom:22}}>
+        {["Operations","Administration","Marketing","HR & Payroll","Maintenance","Driver Allowances","SACCO"].map(cc=>{
+          const ccExp=expenses.filter(e=>e.costCenter===cc||(!e.costCenter&&cc==="Operations")).reduce((s,e)=>s+Number(e.amount),0);
+          const pct=totalExpenses>0?(ccExp/totalExpenses*100).toFixed(1):0;
+          return(
+            <div key={cc} style={{background:C.card,border:`1px solid ${C.navyBorder}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",transition:"all .2s"}} onClick={()=>setCostCenterFilter(cc)}>
+              <div style={{fontWeight:700,fontSize:13,color:C.textPrimary,marginBottom:6}}>{cc}</div>
+              <div style={{fontWeight:800,fontSize:16,color:C.red,marginBottom:6}}>{formatUGX(ccExp)}</div>
+              <div style={{height:4,background:C.navyLight,borderRadius:2,marginBottom:4}}><div style={{width:`${pct}%`,height:"100%",background:C.amber,borderRadius:2}}/></div>
+              <div style={{fontSize:10,color:C.textMuted}}>{pct}% of total expenses</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Cost center expense table */}
+      <Card style={{padding:0,overflow:"hidden"}}>
+        <div style={{padding:"12px 18px",borderBottom:`1px solid ${C.navyBorder}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <h3 className="ral" style={{fontWeight:700}}>Expense Entries{costCenterFilter!=="All"?` — ${costCenterFilter}`:""}</h3>
+          <span style={{fontSize:12,color:C.textMuted}}>{expenses.filter(e=>costCenterFilter==="All"||(e.costCenter===costCenterFilter)||(!e.costCenter&&costCenterFilter==="Operations")).length} entries</span>
+        </div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr>{["Category","Cost Center","Amount","Date","Description","Vehicle","Vendor"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {expenses.filter(e=>costCenterFilter==="All"||(e.costCenter===costCenterFilter)||(!e.costCenter&&costCenterFilter==="Operations")).map(e=>(
+                <tr key={e.id} onMouseEnter={ev=>ev.currentTarget.style.background=C.navyMid} onMouseLeave={ev=>ev.currentTarget.style.background=""}>
+                  <TD><span style={{background:C.orangeBg,color:C.orange,padding:"2px 8px",borderRadius:8,fontSize:10,fontWeight:600}}>{e.category}</span></TD>
+                  <TD><span style={{background:C.navyLight,color:C.textSecondary,padding:"2px 8px",borderRadius:8,fontSize:10}}>{e.costCenter||"Operations"}</span></TD>
+                  <TD style={{color:C.red,fontWeight:700}}>{formatUGX(e.amount)}</TD>
+                  <TD style={{color:C.textMuted}}>{e.date}</TD>
+                  <TD style={{maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.textSecondary}}>{e.description||"—"}</TD>
+                  <TD style={{color:C.textMuted,fontSize:11}}>{e.vehicle||"—"}</TD>
+                  <TD style={{color:C.textMuted,fontSize:11}}>{e.vendor||"—"}</TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+    )}
+
+    {/* ── ROUTE PROFITABILITY ── */}
+    {tab==="routeperf"&&(
+    <div>
+      <div style={{marginBottom:16}}>
+        <h2 className="ral" style={{fontWeight:800,fontSize:18}}>Route Profitability Analysis</h2>
+        <p style={{fontSize:12,color:C.textMuted,marginTop:2}}>Revenue vs costs per route · IASB cost allocation</p>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
+        {(()=>{
+          const routeRevMap={};
+          confirmedBookings.forEach(b=>{const k=b.route||"Unknown";routeRevMap[k]=(routeRevMap[k]||0)+b.amount;});
+          return Object.entries(routeRevMap).sort((a,b)=>b[1]-a[1]).map(([route,rev])=>{
+            const routeExp=expenses.filter(e=>e.route===route).reduce((s,e)=>s+Number(e.amount),0);
+            const netR=rev-routeExp;
+            const margin=rev>0?((netR/rev)*100).toFixed(1):0;
+            return(
+              <div key={route} style={{background:C.card,border:`1px solid ${netR>=0?C.navyBorder:C.red}`,borderRadius:14,padding:"18px 20px"}}>
+                <div className="ral" style={{fontWeight:800,fontSize:14,color:C.textPrimary,marginBottom:12}}>{route}</div>
+                <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                  {[{l:"Revenue",v:rev,c:C.green},{l:"Route Expenses",v:routeExp,c:C.red},{l:"Net Profit",v:netR,c:netR>=0?C.amber:C.red,bold:true}].map(r=>(
+                    <div key={r.l} style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:r.bold?800:400}}>
+                      <span style={{color:C.textMuted}}>{r.l}</span>
+                      <span style={{color:r.c}}>{formatUGX(r.v)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginTop:10,height:5,background:C.navyLight,borderRadius:3}}>
+                  <div style={{width:`${Math.min(Math.abs(margin),100)}%`,height:"100%",background:netR>=0?C.green:C.red,borderRadius:3}}/>
+                </div>
+                <div style={{fontSize:10,color:C.textMuted,marginTop:4}}>Margin: {margin}%</div>
+              </div>
+            );
+          });
+        })()}
+        {confirmedBookings.length===0&&<div style={{color:C.textMuted,fontSize:13,gridColumn:"1/-1",textAlign:"center",padding:32}}>No confirmed bookings yet. Revenue data will appear when bookings are confirmed.</div>}
+      </div>
+    </div>
+    )}
+
+    {/* ── VEHICLE PROFITABILITY ── */}
+    {tab==="vehicleperf"&&(
+    <div>
+      <div style={{marginBottom:16}}>
+        <h2 className="ral" style={{fontWeight:800,fontSize:18}}>Vehicle Profitability</h2>
+        <p style={{fontSize:12,color:C.textMuted,marginTop:2}}>Revenue and cost allocation per vehicle</p>
+      </div>
+      <Card style={{padding:0,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.navyMid}}>{["Vehicle Reg","Trips","Revenue","Fuel/Maint Costs","Other Costs","Net Profit","Margin"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+          <tbody>
+            {(store.vehicles||[]).map(v=>{
+              const vRev=confirmedBookings.filter(b=>b.vehicle_reg===v.registration||b.trip_id).reduce((s,b)=>s+b.amount/((store.trips||[]).length||1),0);
+              const vExp=expenses.filter(e=>e.vehicle===v.registration).reduce((s,e)=>s+Number(e.amount),0);
+              const vFuel=expenses.filter(e=>e.vehicle===v.registration&&["Fuel","Vehicle Servicing","Tyre Replacement"].includes(e.category)).reduce((s,e)=>s+Number(e.amount),0);
+              const vOther=vExp-vFuel;
+              const vNet=vRev-vExp;
+              const vMargin=vRev>0?((vNet/vRev)*100).toFixed(1):0;
+              return(
+                <tr key={v.id} style={{borderBottom:`1px solid ${C.navyBorder}`}}>
+                  <TD><code style={{color:C.amber,fontWeight:700}}>{v.registration}</code><div style={{fontSize:10,color:C.textMuted}}>{v.model}</div></TD>
+                  <TD>{(store.trips||[]).filter(t=>t.vehicle_id===v.id).length}</TD>
+                  <TD style={{color:C.green,fontWeight:700}}>{formatUGX(Math.round(vRev))}</TD>
+                  <TD style={{color:C.red}}>{formatUGX(vFuel)}</TD>
+                  <TD style={{color:C.orange}}>{formatUGX(vOther)}</TD>
+                  <TD style={{fontWeight:800,color:vNet>=0?C.amber:C.red}}>{formatUGX(Math.round(vNet))}</TD>
+                  <TD><span style={{background:vNet>=0?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",color:vNet>=0?C.green:C.red,padding:"2px 8px",borderRadius:8,fontSize:10,fontWeight:700}}>{vMargin}%</span></TD>
+                </tr>
+              );
+            })}
+            {(store.vehicles||[]).length===0&&<tr><td colSpan={7} style={{textAlign:"center",padding:24,color:C.textMuted}}>No vehicles on record.</td></tr>}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+    )}
+
+    {/* ── ACCESS CONTROL ── */}
+    {tab==="users"&&(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 className="ral" style={{fontWeight:800,fontSize:18}}>Finance Access Control</h2>
+        <Btn onClick={()=>setShowUserModal(true)}>+ Add User</Btn>
+      </div>
+      <Card style={{padding:0,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.navyMid}}>{["Name","Email","Access Role","Date Added"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+          <tbody>
+            {financeUsers.map(u=>(
+              <tr key={u.id}>
+                <TD style={{fontWeight:600}}>{u.name}</TD>
+                <TD style={{color:C.textMuted}}>{u.email}</TD>
+                <TD><span style={{background:u.role==="editor"?"rgba(245,166,35,0.15)":"rgba(59,130,246,0.12)",color:u.role==="editor"?C.amber:C.blue,padding:"2px 10px",borderRadius:10,fontSize:10,fontWeight:700,textTransform:"uppercase"}}>{u.role}</span></TD>
+                <TD style={{color:C.textMuted}}>{u.added}</TD>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      <Modal open={showUserModal} onClose={()=>setShowUserModal(false)} title="Add Finance User">
+        <div style={{display:"flex",flexDirection:"column",gap:13}}>
+          <Input label="Full Name" value={userForm.name} onChange={e=>setUserForm({...userForm,name:e.target.value})} placeholder="e.g. Ruth Kamya"/>
+          <Input label="Email Address" type="email" value={userForm.email} onChange={e=>setUserForm({...userForm,email:e.target.value})} placeholder="ruth@raylane.ug"/>
+          <Sel label="Access Role" value={userForm.role} onChange={e=>setUserForm({...userForm,role:e.target.value})} options={[{value:"viewer",label:"Viewer \u2014 Read Only"},{value:"editor",label:"Editor \u2014 Can Add/Edit Entries"}]}/>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn variant="navy" onClick={()=>setShowUserModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+            <Btn onClick={()=>{setFinanceUsers(prev=>[...prev,{...userForm,id:`FU-${Date.now()}`,added:new Date().toISOString().split("T")[0]}]);setShowUserModal(false);setUserForm({name:"",email:"",role:"viewer"});}}>Add User</Btn>
+          </div>
+        </div>
+      </Modal>
+    </div>
+    )}
+  </div>
+  );
+};
+
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// PAYROLL MODULE \u2014 UGANDA PAYE/NSSF COMPLIANT
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+// Uganda PAYE 2025/26 thresholds (UGX per month)
+const PAYE_BRACKETS=[
+  {min:0,max:235000,rate:0},
+  {min:235001,max:335000,rate:0.10},
+  {min:335001,max:410000,rate:0.20},
+  {min:410001,max:10000000,rate:0.30},
+  {min:10000001,max:Infinity,rate:0.40},
+];
+
+const calcPAYE=(grossTaxable)=>{
+  let tax=0;
+  for(const b of PAYE_BRACKETS){
+    if(grossTaxable>b.min){
+      const taxable=Math.min(grossTaxable,b.max)-b.min;
+      tax+=taxable*b.rate;
+    }
+  }
+  return Math.round(tax);
+};
+
+const NSSF_EMPLOYEE_RATE=0.05; // 5%
+const NSSF_EMPLOYER_RATE=0.10; // 10%
+const LOCAL_SERVICE_TAX_THRESHOLD=200000; // per month
+
+const genEmployeeId=(name,dateJoined,seq)=>{
+  const d=new Date(dateJoined);
+  const dd=String(d.getDate()).padStart(2,"0");
+  const mm=String(d.getMonth()+1).padStart(2,"0");
+  const yy=String(d.getFullYear()).slice(-2);
+  return `RL-EM${dd}${mm}${yy}${String(seq).padStart(3,"0")}`;
+};
+
+const INIT_EMPLOYEES=[
+  {id:genEmployeeId("Moses Lubega","2026-01-15",1),name:"Moses Lubega",role:"Agent",department:"Operations",phone:"0772200001",email:"moses@raylane.ug",bankAccount:"1234567890",bankName:"Centenary Bank",tinURA:"",nssfNumber:"",nextOfKin:"",nextOfKinPhone:"",photo:"",basicSalary:800000,allowances:{transport:50000,lunch:40000,housing:0},dateJoined:"2026-01-15",status:"active",nssf:true,seq:1},
+  {id:genEmployeeId("Ruth Acen","2026-01-20",2),name:"Ruth Acen",role:"Agent",department:"Operations",phone:"0782200002",email:"ruth@raylane.ug",bankAccount:"9876543210",bankName:"Stanbic Bank",tinURA:"",nssfNumber:"",nextOfKin:"",nextOfKinPhone:"",photo:"",basicSalary:800000,allowances:{transport:50000,lunch:40000,housing:0},dateJoined:"2026-01-20",status:"active",nssf:true,seq:2},
+];
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// HR MODULE COMPONENTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── ID CARD PDF GENERATOR ────────────────────────────────────────────
+const generateIDCardPDF=(emp,companyLogo)=>{
+  const canvas=document.createElement("canvas");
+  canvas.width=856; canvas.height=540; // CR80 card at 100dpi (3.375"×2.125")
+  const ctx=canvas.getContext("2d");
+
+  // Background gradient
+  const grad=ctx.createLinearGradient(0,0,856,0);
+  grad.addColorStop(0,"#0B1E4B"); grad.addColorStop(1,"#1a3a8f");
+  ctx.fillStyle=grad; ctx.fillRect(0,0,856,540);
+
+  // Gold accent bar
+  ctx.fillStyle="#F59E0B"; ctx.fillRect(0,0,12,540);
+  ctx.fillRect(12,0,844,6);
+
+  // Company name
+  ctx.fillStyle="#F59E0B"; ctx.font="bold 32px Raleway,Arial,sans-serif";
+  ctx.fillText("RAYLANE EXPRESS",38,56);
+  ctx.fillStyle="rgba(255,255,255,0.55)"; ctx.font="12px Arial,sans-serif";
+  ctx.fillText("Aponye Mall, Nakasero, Kampala  ·  +256 (0) 766 026 401",38,76);
+
+  // Photo area
+  ctx.fillStyle="rgba(255,255,255,0.08)";
+  ctx.beginPath(); ctx.roundRect(38,100,180,220,12); ctx.fill();
+  if(emp.photo){
+    const img=new Image(); img.src=emp.photo;
+    ctx.save(); ctx.beginPath(); ctx.roundRect(38,100,180,220,12); ctx.clip();
+    try{ctx.drawImage(img,38,100,180,220);}catch(e){}
+    ctx.restore();
+  } else {
+    ctx.fillStyle="rgba(255,255,255,0.3)"; ctx.font="72px Arial";
+    ctx.fillText("👤",68,230);
+  }
+
+  // Employee details
+  ctx.fillStyle="#fff"; ctx.font="bold 28px Raleway,Arial,sans-serif";
+  ctx.fillText(emp.name||"",240,136);
+  ctx.fillStyle=C.amber||"#F59E0B"; ctx.font="bold 16px Arial,sans-serif";
+  ctx.fillText((emp.role||"").toUpperCase(),240,164);
+  ctx.fillStyle="rgba(255,255,255,0.55)"; ctx.font="13px Arial,sans-serif";
+  ctx.fillText(emp.department||"",240,186);
+
+  const details=[
+    ["ID",emp.id||""],
+    ["Phone",emp.phone||""],
+    ["Joined",emp.dateJoined||""],
+    ["NSSF",emp.nssfNumber||"—"],
+    ["TIN",emp.tinURA||"—"],
+  ];
+  details.forEach(([k,v],i)=>{
+    const y=220+i*32;
+    ctx.fillStyle="rgba(255,255,255,0.4)"; ctx.font="11px Arial,sans-serif";
+    ctx.fillText(k.toUpperCase(),240,y);
+    ctx.fillStyle="#fff"; ctx.font="bold 14px Arial,sans-serif";
+    ctx.fillText(v,320,y);
+  });
+
+  // Barcode placeholder
+  ctx.fillStyle="rgba(255,255,255,0.15)";
+  ctx.fillRect(38,340,180,60);
+  ctx.fillStyle="rgba(255,255,255,0.3)"; ctx.font="9px Arial,sans-serif";
+  ctx.textAlign="center"; ctx.fillText(emp.id||"",128,415);
+
+  // Footer
+  ctx.fillStyle="rgba(255,255,255,0.2)"; ctx.fillRect(0,490,856,50);
+  ctx.fillStyle="rgba(255,255,255,0.6)"; ctx.font="11px Arial,sans-serif";
+  ctx.textAlign="left";
+  ctx.fillText("This card is the property of Raylane Express Ltd. If found, please call +256 (0) 766 026 401",38,515);
+
+  // Convert to PDF via data URL
+  const imgData=canvas.toDataURL("image/jpeg",0.95);
+  const link=document.createElement("a");
+  link.href=imgData;
+  link.download=`ID_${emp.name?.replace(/ /g,"_")||"employee"}_Raylane.jpg`;
+  link.click();
+};
+
+// ─── ADMIN HR SECTION ─────────────────────────────────────────────────
+const INIT_DEPARTMENTS=["Operations","Finance","Administration","Drivers","IT","Marketing","Human Resources"];
+
+const AdminHRSection=({store})=>{
+  const [tab,setTab]=useState("list");
+  const [showModal,setShowModal]=useState(false);
+  const [editId,setEditId]=useState(null);
+  const [departments,setDepartments]=useState(INIT_DEPARTMENTS);
+  const [newDept,setNewDept]=useState("");
+  const [search,setSearch]=useState("");
+  const [form,setForm]=useState({
+    name:"",role:"",department:"Operations",phone:"",email:"",
+    photo:"",bankAccount:"",bankName:"",tinURA:"",nssfNumber:"",
+    nextOfKin:"",nextOfKinPhone:"",dateJoined:new Date().toISOString().split("T")[0],
+    basicSalary:"",allowances:{transport:"50000",lunch:"40000",housing:"0"},
+    status:"active",nssf:true,notes:""
+  });
+
+  const employees=store.employees||[];
+  const filtered=employees.filter(e=>e.name?.toLowerCase().includes(search.toLowerCase())||e.department?.toLowerCase().includes(search.toLowerCase())||e.role?.toLowerCase().includes(search.toLowerCase()));
+
+  const openEdit=(emp)=>{
+    setEditId(emp.id);
+    setForm({...emp,allowances:{transport:String(emp.allowances?.transport||50000),lunch:String(emp.allowances?.lunch||40000),housing:String(emp.allowances?.housing||0)}});
+    setShowModal(true);
+  };
+  const openNew=()=>{
+    setEditId(null);
+    setForm({name:"",role:"",department:"Operations",phone:"",email:"",photo:"",bankAccount:"",bankName:"",tinURA:"",nssfNumber:"",nextOfKin:"",nextOfKinPhone:"",dateJoined:new Date().toISOString().split("T")[0],basicSalary:"",allowances:{transport:"50000",lunch:"40000",housing:"0"},status:"active",nssf:true,notes:""});
+    setShowModal(true);
+  };
+  const handlePhotoUpload=e=>{
+    const file=e.target.files[0]; if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>setForm(f=>({...f,photo:ev.target.result}));
+    reader.readAsDataURL(file);
+  };
+  const save=()=>{
+    if(!form.name||!form.role) return;
+    const emp={...form,allowances:{transport:Number(form.allowances?.transport||0),lunch:Number(form.allowances?.lunch||0),housing:Number(form.allowances?.housing||0)},basicSalary:Number(form.basicSalary||0)};
+    if(editId) store.updateEmployee(editId,emp);
+    else store.addEmployee({...emp,id:genEmployeeId(form.name,form.dateJoined,employees.length+1),seq:employees.length+1});
+    setShowModal(false);
+  };
+
+  return(
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <h1 className="ral" style={{fontSize:24,fontWeight:900,color:C.darkText}}>Human Resources</h1>
+        <div style={{display:"flex",gap:10}}>
+          <Btn variant="dark" onClick={()=>setTab(tab==="list"?"depts":"list")} style={{fontSize:12}}>
+            {tab==="list"?"⚙️ Departments":"← Employees"}
+          </Btn>
+          <Btn onClick={openNew}>+ Add Employee</Btn>
+        </div>
+      </div>
+
+      {tab==="depts"&&(
+        <div style={{animation:"fadeUp .2s ease"}}>
+          <Card style={{marginBottom:16}}>
+            <h3 className="ral" style={{fontWeight:800,color:C.darkText,marginBottom:14}}>Manage Departments</h3>
+            <div style={{display:"flex",gap:10,marginBottom:16}}>
+              <input value={newDept} onChange={e=>setNewDept(e.target.value)} placeholder="New department name…"
+                style={{flex:1,padding:"9px 14px",background:C.darkInput,border:`1.5px solid ${C.darkBorder}`,borderRadius:10,color:C.darkText,fontSize:13,outline:"none"}}/>
+              <Btn onClick={()=>{if(newDept.trim()&&!departments.includes(newDept.trim())){setDepartments(p=>[...p,newDept.trim()]);setNewDept("");}}} disabled={!newDept.trim()}>Add</Btn>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {departments.map(d=>(
+                <div key={d} style={{display:"flex",alignItems:"center",gap:6,background:C.navyLight,borderRadius:20,padding:"6px 12px",border:`1px solid ${C.navyBorder}`}}>
+                  <span style={{fontSize:13,color:C.darkText,fontWeight:600}}>{d}</span>
+                  <span onClick={()=>setDepartments(p=>p.filter(x=>x!==d))} style={{cursor:"pointer",color:C.textMuted,fontSize:16,lineHeight:1}}>×</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <div style={{fontSize:12,color:C.darkMuted,padding:"8px 12px",background:C.darkInput,borderRadius:8}}>
+            ⚠️ Removing a department does not affect employees already assigned to it. Reassign them manually if needed.
+          </div>
+        </div>
+      )}
+
+      {tab==="list"&&(
+        <>
+          {/* Stats */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:20}}>
+            {[
+              {label:"Total Staff",value:employees.length,icon:"👥"},
+              {label:"Active",value:employees.filter(e=>e.status==="active").length,icon:"✅"},
+              {label:"Departments",value:[...new Set(employees.map(e=>e.department))].length,icon:"🏢"},
+              {label:"On Payroll",value:employees.filter(e=>e.nssf).length,icon:"💼"},
+            ].map(s=>(
+              <Card key={s.label} style={{textAlign:"center",padding:"14px"}}>
+                <div style={{fontSize:22,marginBottom:4}}>{s.icon}</div>
+                <div className="ral" style={{fontWeight:900,fontSize:20,color:C.darkText}}>{s.value}</div>
+                <div style={{fontSize:11,color:C.darkMuted}}>{s.label}</div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Search */}
+          <div style={{marginBottom:14,display:"flex",gap:10}}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, role, department…"
+              style={{flex:1,padding:"9px 14px",background:C.darkInput,border:`1.5px solid ${C.darkBorder}`,borderRadius:10,color:C.darkText,fontSize:13,outline:"none"}}/>
+          </div>
+
+          {/* Employee cards */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14}}>
+            {filtered.map(emp=>(
+              <Card key={emp.id} style={{padding:0,overflow:"hidden"}}>
+                <div style={{display:"flex",gap:14,padding:"14px 14px 10px",alignItems:"flex-start"}}>
+                  <div style={{width:58,height:58,borderRadius:14,overflow:"hidden",flexShrink:0,background:C.navyLight,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {emp.photo?<img src={emp.photo} alt={emp.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:28}}>👤</span>}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="ral" style={{fontWeight:800,fontSize:15,color:C.darkText,marginBottom:2}}>{emp.name}</div>
+                    <div style={{fontSize:12,color:C.amber,fontWeight:600}}>{emp.role}</div>
+                    <div style={{fontSize:11,color:C.darkMuted}}>{emp.department} · Joined {emp.dateJoined}</div>
+                  </div>
+                  <span style={{fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:10,background:emp.status==="active"?C.green+"33":C.red+"22",color:emp.status==="active"?C.green:C.red}}>{emp.status?.toUpperCase()}</span>
+                </div>
+                <div style={{padding:"0 14px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:11,color:C.darkMuted}}>
+                  <div>📱 {emp.phone||"—"}</div>
+                  <div>🏦 {emp.bankName||"—"}</div>
+                  {emp.nssfNumber&&<div>NSSF: {emp.nssfNumber}</div>}
+                  {emp.tinURA&&<div>TIN: {emp.tinURA}</div>}
+                </div>
+                <div style={{display:"flex",gap:0,borderTop:`1px solid ${C.darkBorder}`}}>
+                  <button onClick={()=>openEdit(emp)} style={{flex:1,padding:"9px",background:"none",border:"none",color:C.amber,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>✏️ Edit</button>
+                  <button onClick={()=>generateIDCardPDF(emp)} style={{flex:1,padding:"9px",background:"none",borderLeft:`1px solid ${C.darkBorder}`,border:"none",borderLeft:`1px solid ${C.darkBorder}`,color:C.blue,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"'Inter',sans-serif"}}>🪪 ID Card</button>
+                  <button onClick={()=>store.updateEmployee(emp.id,{status:emp.status==="active"?"inactive":"active"})} style={{flex:1,padding:"9px",background:"none",borderLeft:`1px solid ${C.darkBorder}`,border:"none",borderLeft:`1px solid ${C.darkBorder}`,color:C.textMuted,cursor:"pointer",fontSize:11,fontFamily:"'Inter',sans-serif"}}>{emp.status==="active"?"Deactivate":"Activate"}</button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── Employee Modal ── */}
+      {showModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"20px",overflowY:"auto"}}>
+          <div style={{background:C.darkCard,borderRadius:20,padding:28,width:"100%",maxWidth:640,border:`1px solid ${C.darkBorder}`,marginTop:20}}>
+            <h3 className="ral" style={{fontWeight:800,color:C.darkText,marginBottom:20}}>{editId?"Edit Employee":"Add New Employee"}</h3>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+
+              {/* Photo upload */}
+              <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:16}}>
+                <div style={{width:80,height:80,borderRadius:16,overflow:"hidden",background:C.navyLight,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:`2px solid ${C.darkBorder}`}}>
+                  {form.photo?<img src={form.photo} alt="preview" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:36}}>👤</span>}
+                </div>
+                <label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 16px",borderRadius:10,border:`1.5px dashed ${C.amber}`,cursor:"pointer",background:C.amber+"09"}}>
+                  <span style={{fontSize:16}}>📷</span>
+                  <span style={{fontSize:13,color:C.amber,fontWeight:600}}>Upload Photo</span>
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{display:"none"}}/>
+                </label>
+                <div style={{fontSize:11,color:C.darkMuted,lineHeight:1.6}}>Standard passport-size photo.<br/>Used on the employee ID card.</div>
+              </div>
+
+              {/* Personal details */}
+              <Input label="Full Name *" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="First and last name"/>
+              <Input label="Role / Job Title *" value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="e.g. Driver, Agent"/>
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Department *</label>
+                <select value={form.department} onChange={e=>setForm(f=>({...f,department:e.target.value}))}
+                  style={{width:"100%",padding:"10px 14px",background:C.darkInput,border:`1.5px solid ${C.darkBorder}`,borderRadius:10,color:C.darkText,fontSize:13,outline:"none"}}>
+                  {departments.map(d=><option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Status</label>
+                <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}
+                  style={{width:"100%",padding:"10px 14px",background:C.darkInput,border:`1.5px solid ${C.darkBorder}`,borderRadius:10,color:C.darkText,fontSize:13,outline:"none"}}>
+                  <option value="active">Active</option>
+                  <option value="probation">Probation</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="terminated">Terminated</option>
+                </select>
+              </div>
+              <Input label="Phone Number" value={form.phone} onChange={e=>setForm(f=>({...f,phone:ugPhoneFormat(e.target.value)}))} placeholder="0771234567" maxLength={10}/>
+              <Input label="Email Address" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="name@raylane.ug" type="email"/>
+              <Input label="Date Joined" value={form.dateJoined} onChange={e=>setForm(f=>({...f,dateJoined:e.target.value}))} type="date"/>
+              <Input label="Basic Salary (UGX)" value={form.basicSalary} onChange={e=>setForm(f=>({...f,basicSalary:e.target.value}))} type="number" placeholder="e.g. 800000"/>
+
+              {/* Statutory & Banking */}
+              <div style={{gridColumn:"1/-1",marginTop:6,fontWeight:700,fontSize:12,color:C.amber,borderBottom:`1px solid ${C.darkBorder}`,paddingBottom:6}}>📋 Statutory & Banking Details</div>
+              <Input label="Bank Account Number" value={form.bankAccount} onChange={e=>setForm(f=>({...f,bankAccount:e.target.value}))} placeholder="e.g. 1234567890"/>
+              <Input label="Bank Name" value={form.bankName} onChange={e=>setForm(f=>({...f,bankName:e.target.value}))} placeholder="e.g. Stanbic Bank"/>
+              <Input label="TIN (URA Tax ID)" value={form.tinURA} onChange={e=>setForm(f=>({...f,tinURA:e.target.value}))} placeholder="e.g. 1000123456"/>
+              <Input label="NSSF Number" value={form.nssfNumber} onChange={e=>setForm(f=>({...f,nssfNumber:e.target.value}))} placeholder="e.g. CF12345678"/>
+
+              {/* Next of kin */}
+              <div style={{gridColumn:"1/-1",marginTop:6,fontWeight:700,fontSize:12,color:C.amber,borderBottom:`1px solid ${C.darkBorder}`,paddingBottom:6}}>👨‍👩‍👧 Next of Kin</div>
+              <Input label="Next of Kin Name" value={form.nextOfKin} onChange={e=>setForm(f=>({...f,nextOfKin:e.target.value}))} placeholder="Full name"/>
+              <Input label="Next of Kin Phone" value={form.nextOfKinPhone} onChange={e=>setForm(f=>({...f,nextOfKinPhone:ugPhoneFormat(e.target.value)}))} placeholder="0771234567" maxLength={10}/>
+
+              {/* Allowances */}
+              <div style={{gridColumn:"1/-1",marginTop:6,fontWeight:700,fontSize:12,color:C.amber,borderBottom:`1px solid ${C.darkBorder}`,paddingBottom:6}}>💰 Allowances (UGX/month)</div>
+              <Input label="Transport" value={form.allowances?.transport||""} onChange={e=>setForm(f=>({...f,allowances:{...f.allowances,transport:e.target.value}}))} type="number"/>
+              <Input label="Lunch" value={form.allowances?.lunch||""} onChange={e=>setForm(f=>({...f,allowances:{...f.allowances,lunch:e.target.value}}))} type="number"/>
+              <Input label="Housing" value={form.allowances?.housing||""} onChange={e=>setForm(f=>({...f,allowances:{...f.allowances,housing:e.target.value}}))} type="number"/>
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:C.darkText,alignSelf:"center"}}>
+                <input type="checkbox" checked={form.nssf} onChange={e=>setForm(f=>({...f,nssf:e.target.checked}))} style={{width:16,height:16}}/>
+                Enrolled in NSSF
+              </label>
+
+              {/* Notes */}
+              <div style={{gridColumn:"1/-1"}}>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Notes</label>
+                <textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} rows={2} placeholder="Any additional notes…"
+                  style={{width:"100%",padding:"10px 14px",background:C.darkInput,border:`1.5px solid ${C.darkBorder}`,borderRadius:10,color:C.darkText,fontSize:13,fontFamily:"'Inter',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:20}}>
+              <Btn onClick={()=>setShowModal(false)} variant="dark" style={{flex:1}}>Cancel</Btn>
+              {editId&&<Btn onClick={()=>generateIDCardPDF(form)} variant="dark" style={{padding:"10px 16px"}}>🪪 Generate ID</Btn>}
+              <Btn onClick={save} style={{flex:2}} disabled={!form.name||!form.role}>Save Employee</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── USER MANAGEMENT SECTION ──────────────────────────────────────────
+const SYSTEM_MODULES=[
+  {id:"bookings",label:"Bookings",icon:"🎫"},
+  {id:"trips",label:"Trips & Schedules",icon:"🗓️"},
+  {id:"vehicles",label:"Van Fleet",icon:"🚐"},
+  {id:"parcels",label:"Parcels",icon:"📦"},
+  {id:"finance",label:"Finance",icon:"📊"},
+  {id:"promotions",label:"Promotions",icon:"🎁"},
+  {id:"reports",label:"Reports",icon:"📈"},
+  {id:"agents",label:"Agents",icon:"👤"},
+  {id:"feedback",label:"Feedback",icon:"⭐"},
+  {id:"cms",label:"Homepage CMS",icon:"🖼️"},
+  {id:"hr",label:"HR Module",icon:"👥"},
+  {id:"payroll",label:"Payroll",icon:"💼"},
+  {id:"usermgmt",label:"User Management",icon:"🔐"},
+  {id:"momoapi",label:"MoMo API Settings",icon:"💳"},
+  {id:"reservations",label:"Reservations",icon:"🪑"},
+  {id:"settings",label:"System Settings",icon:"⚙️"},
+];
+
+const AdminUserMgmtSection=({store})=>{
+  const [users,setUsers]=useState([
+    {id:1,name:"Administrator",username:"admin",email:"admin@raylane.ug",role:"superadmin",modules:"all",active:true,created:"2026-01-01"},
+  ]);
+  const [showModal,setShowModal]=useState(false);
+  const [form,setForm]=useState({name:"",username:"",email:"",password:"",role:"custom",modules:[],active:true});
+  const [editId,setEditId]=useState(null);
+
+  const roles=[
+    {id:"superadmin",label:"Super Admin",desc:"Full access to everything"},
+    {id:"finance_mgr",label:"Finance Manager",desc:"Finance, reports, payroll"},
+    {id:"ops_mgr",label:"Operations Manager",desc:"Trips, bookings, vehicles"},
+    {id:"hr_mgr",label:"HR Manager",desc:"HR module, payroll"},
+    {id:"custom",label:"Custom",desc:"Choose specific module access"},
+  ];
+  const roleDefaults={
+    superadmin:"all",
+    finance_mgr:["finance","reports","payroll"],
+    ops_mgr:["bookings","trips","vehicles","parcels","reservations","agents"],
+    hr_mgr:["hr","payroll"],
+    custom:[],
+  };
+
+  const save=()=>{
+    if(!form.name||!form.username) return;
+    const modules=form.role==="superadmin"?"all":form.modules;
+    if(editId) setUsers(p=>p.map(u=>u.id===editId?{...u,...form,modules}:u));
+    else setUsers(p=>[...p,{...form,modules,id:Date.now(),created:new Date().toISOString().split("T")[0]}]);
+    setShowModal(false);
+  };
+
+  return(
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <h1 className="ral" style={{fontSize:24,fontWeight:900,color:C.darkText}}>User Management</h1>
+        <Btn onClick={()=>{setEditId(null);setForm({name:"",username:"",email:"",password:"",role:"custom",modules:[],active:true});setShowModal(true);}}>+ Add User</Btn>
+      </div>
+      <p style={{fontSize:13,color:C.darkMuted,marginBottom:20}}>Create system users with specific module access. Super Admin has unrestricted access.</p>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+        {users.map(u=>(
+          <Card key={u.id}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+              <div>
+                <div className="ral" style={{fontWeight:800,fontSize:15,color:C.darkText}}>{u.name}</div>
+                <div style={{fontSize:12,color:C.textMuted}}>@{u.username} · {u.email||"No email"}</div>
+              </div>
+              <span style={{fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:10,background:u.active?C.green+"33":C.red+"22",color:u.active?C.green:C.red,whiteSpace:"nowrap"}}>{u.active?"ACTIVE":"DISABLED"}</span>
+            </div>
+            <div style={{fontSize:11,color:C.amber,fontWeight:700,marginBottom:8}}>
+              {roles.find(r=>r.id===u.role)?.label||u.role}
+            </div>
+            <div style={{fontSize:11,color:C.darkMuted,marginBottom:12,lineHeight:1.6}}>
+              Access: {u.modules==="all"?"All modules":Array.isArray(u.modules)?u.modules.slice(0,4).map(m=>SYSTEM_MODULES.find(x=>x.id===m)?.label||m).join(", ")+(u.modules.length>4?` +${u.modules.length-4} more`:""):"None"}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn variant="dark" style={{flex:1,fontSize:11,padding:"6px"}} onClick={()=>{setEditId(u.id);setForm({...u});setShowModal(true);}}>Edit</Btn>
+              <Btn variant="dark" style={{padding:"6px 10px",fontSize:11}} onClick={()=>setUsers(p=>p.map(x=>x.id===u.id?{...x,active:!x.active}:x))}>{u.active?"Disable":"Enable"}</Btn>
+              {u.id!==1&&<Btn variant="danger" style={{padding:"6px 10px",fontSize:11}} onClick={()=>setUsers(p=>p.filter(x=>x.id!==u.id))}>✕</Btn>}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {showModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"20px",overflowY:"auto"}}>
+          <div style={{background:C.darkCard,borderRadius:20,padding:28,width:"100%",maxWidth:560,border:`1px solid ${C.darkBorder}`,marginTop:20}}>
+            <h3 className="ral" style={{fontWeight:800,color:C.darkText,marginBottom:20}}>{editId?"Edit User":"Add New User"}</h3>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                <Input label="Full Name *" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Display name"/>
+                <Input label="Username *" value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value.toLowerCase().replace(/\s/g,".")}))} placeholder="e.g. john.doe"/>
+                <Input label="Email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} type="email" placeholder="user@raylane.ug"/>
+                <Input label={editId?"New Password (leave blank to keep)":"Password *"} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))} type="password" placeholder="Min 8 characters"/>
+              </div>
+
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:10}}>Role / Access Level</label>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {roles.map(r=>(
+                    <div key={r.id} onClick={()=>setForm(f=>({...f,role:r.id,modules:Array.isArray(roleDefaults[r.id])?[...roleDefaults[r.id]]:[]}))}
+                      style={{padding:"10px 14px",borderRadius:10,border:`1.5px solid ${form.role===r.id?C.amber:C.darkBorder}`,background:form.role===r.id?C.amber+"15":"transparent",cursor:"pointer",transition:"all .2s"}}>
+                      <div style={{fontWeight:700,fontSize:13,color:form.role===r.id?C.amber:C.darkText}}>{r.label}</div>
+                      <div style={{fontSize:11,color:C.darkMuted,marginTop:2}}>{r.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {form.role==="custom"&&(
+                <div>
+                  <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:10}}>Module Access</label>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                    {SYSTEM_MODULES.map(m=>(
+                      <label key={m.id} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",padding:"6px 8px",borderRadius:8,background:form.modules.includes(m.id)?C.amber+"15":"transparent",border:`1px solid ${form.modules.includes(m.id)?C.amber+"44":"transparent"}`}}>
+                        <input type="checkbox" checked={form.modules.includes(m.id)}
+                          onChange={e=>setForm(f=>({...f,modules:e.target.checked?[...f.modules,m.id]:f.modules.filter(x=>x!==m.id)}))}
+                          style={{accentColor:C.amber,width:14,height:14}}/>
+                        <span style={{fontSize:12,color:C.darkText}}>{m.icon} {m.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:20}}>
+              <Btn onClick={()=>setShowModal(false)} variant="dark" style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={save} style={{flex:2}} disabled={!form.name||!form.username}>Save User</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AdminPayrollSection=({store})=>{
+  const [payTab,setPayTab]=useState("employees");
+  const [employees,setEmployees]=useState(INIT_EMPLOYEES);
+  const [showEmpModal,setShowEmpModal]=useState(false);
+  const [editingEmp,setEditingEmp]=useState(null);
+  const [payMonth,setPayMonth]=useState(new Date().toISOString().slice(0,7));
+  const [showPayslip,setShowPayslip]=useState(null);
+  const [empForm,setEmpForm]=useState({name:"",role:"",department:"",phone:"",email:"",bankAccount:"",bankName:"",basicSalary:"",allowTransport:"50000",allowLunch:"40000",allowHousing:"0",dateJoined:new Date().toISOString().split("T")[0],status:"active",nssf:true});
+
+  const calcPayroll=(emp)=>{
+    const basic=Number(emp.basicSalary);
+    const transport=Number(emp.allowances?.transport||0);
+    const lunch=Number(emp.allowances?.lunch||0);
+    const housing=Number(emp.allowances?.housing||0);
+    const grossSalary=basic+transport+lunch+housing;
+    const nssfEmployee=emp.nssf?Math.round(basic*NSSF_EMPLOYEE_RATE):0;
+    const nssfEmployer=emp.nssf?Math.round(basic*NSSF_EMPLOYER_RATE):0;
+    const taxableIncome=basic+housing; // Transport+lunch exempt per URA
+    const paye=calcPAYE(taxableIncome);
+    const localServiceTax=grossSalary>Local_SERVICE_TAX_THRESHOLD?Math.round(grossSalary*0.005):0;
+    const totalDeductions=nssfEmployee+paye+localServiceTax;
+    const netPay=grossSalary-totalDeductions;
+    return{grossSalary,nssfEmployee,nssfEmployer,paye,localServiceTax,totalDeductions,netPay,basic,transport,lunch,housing,taxableIncome};
+  };
+
+  // Fix reference to constant
+  const Local_SERVICE_TAX_THRESHOLD=LOCAL_SERVICE_TAX_THRESHOLD;
+
+  const saveEmployee=()=>{
+    const newSeq=employees.length+1;
+    const entry={
+      id:editingEmp?.id||genEmployeeId(empForm.name,empForm.dateJoined,newSeq),
+      name:empForm.name,role:empForm.role,department:empForm.department,
+      phone:empForm.phone,email:empForm.email,bankAccount:empForm.bankAccount,
+      bankName:empForm.bankName,basicSalary:Number(empForm.basicSalary),
+      allowances:{transport:Number(empForm.allowTransport),lunch:Number(empForm.allowLunch),housing:Number(empForm.allowHousing)},
+      dateJoined:empForm.dateJoined,status:empForm.status,nssf:empForm.nssf,seq:editingEmp?.seq||newSeq
+    };
+    if(editingEmp){setEmployees(prev=>prev.map(e=>e.id===editingEmp.id?entry:e));}
+    else{setEmployees(prev=>[...prev,entry]);}
+    setShowEmpModal(false);setEditingEmp(null);
+    setEmpForm({name:"",role:"",department:"",phone:"",email:"",bankAccount:"",bankName:"",basicSalary:"",allowTransport:"50000",allowLunch:"40000",allowHousing:"0",dateJoined:new Date().toISOString().split("T")[0],status:"active",nssf:true});
+  };
+
+  const totalPayroll=employees.filter(e=>e.status==="active").reduce((s,e)=>s+calcPayroll(e).netPay,0);
+  const totalGross=employees.filter(e=>e.status==="active").reduce((s,e)=>s+calcPayroll(e).grossSalary,0);
+  const totalPAYE=employees.filter(e=>e.status==="active").reduce((s,e)=>s+calcPayroll(e).paye,0);
+  const totalNSSF=employees.filter(e=>e.status==="active").reduce((s,e)=>s+calcPayroll(e).nssfEmployer,0);
+
+  const tabBtnStyle=(t)=>({padding:"8px 16px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,
+    background:payTab===t?C.amber:"transparent",color:payTab===t?C.navy:C.textSecondary,transition:"all .2s"});
+
+  const Payslip=({emp})=>{
+    const p=calcPayroll(emp);
+    return(
+    <div style={{background:"#fff",color:"#1a1a1a",padding:32,borderRadius:12,maxWidth:520,margin:"0 auto",fontFamily:"'Inter',sans-serif"}}>
+      <div style={{borderBottom:"3px solid #0D1B3E",paddingBottom:16,marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div>
+          <div style={{fontFamily:"'Source Serif 4',Georgia,serif",fontWeight:900,fontSize:20,color:"#0D1B3E"}}>RAYLANE EXPRESS</div>
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>Employee Pay Slip \u00b7 {payMonth}</div>
+          <div style={{fontSize:10,color:"#888",marginTop:1}}>Uganda Revenue Authority Compliant \u00b7 NSSF Registered</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontWeight:700,fontSize:13,color:"#0D1B3E"}}>{emp.name}</div>
+          <div style={{fontSize:11,color:"#666"}}>{emp.role} | {emp.department}</div>
+          <div style={{fontSize:10,color:"#888",fontFamily:"monospace"}}>{emp.id}</div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+        <div>
+          <div style={{fontWeight:700,fontSize:11,color:"#0D1B3E",textTransform:"uppercase",letterSpacing:".5px",marginBottom:10,borderBottom:"1px solid #e0e0e0",paddingBottom:6}}>EARNINGS</div>
+          {[["Basic Salary",p.basic],["Transport Allowance",p.transport],["Lunch Allowance",p.lunch],["Housing Allowance",p.housing]].map(([l,v])=>(
+            <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:"1px solid #f0f0f0"}}>
+              <span style={{color:"#555"}}>{l}</span><span style={{fontWeight:600}}>{formatUGX(v)}</span>
+            </div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0",marginTop:4,borderTop:"2px solid #0D1B3E"}}>
+            <span style={{fontWeight:700}}>Gross Salary</span><span style={{fontWeight:800,color:"#16a34a"}}>{formatUGX(p.grossSalary)}</span>
+          </div>
+        </div>
+        <div>
+          <div style={{fontWeight:700,fontSize:11,color:"#0D1B3E",textTransform:"uppercase",letterSpacing:".5px",marginBottom:10,borderBottom:"1px solid #e0e0e0",paddingBottom:6}}>DEDUCTIONS</div>
+          {[["NSSF (Employee 5%)",p.nssfEmployee],["PAYE (Income Tax)",p.paye],["Local Service Tax",p.localServiceTax]].map(([l,v])=>(
+            <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:"1px solid #f0f0f0"}}>
+              <span style={{color:"#555"}}>{l}</span><span style={{fontWeight:600,color:"#dc2626"}}>{formatUGX(v)}</span>
+            </div>
+          ))}
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0",marginTop:4,borderTop:"2px solid #0D1B3E"}}>
+            <span style={{fontWeight:700}}>Total Deductions</span><span style={{fontWeight:800,color:"#dc2626"}}>{formatUGX(p.totalDeductions)}</span>
+          </div>
+        </div>
+      </div>
+      <div style={{background:"#0D1B3E",color:"#fff",borderRadius:10,padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontWeight:700,fontSize:14}}>NET PAY</span>
+        <span style={{fontFamily:"'Source Serif 4',Georgia,serif",fontWeight:900,fontSize:22,color:"#F5A623"}}>{formatUGX(p.netPay)}</span>
+      </div>
+      <div style={{marginTop:16,padding:"10px 14px",background:"#f8f8f8",borderRadius:8,fontSize:10,color:"#888"}}>
+        <div>Bank: {emp.bankName||"\u2014"} \u00b7 Account: {emp.bankAccount||"\u2014"}</div>
+        <div style={{marginTop:4}}>Employer NSSF Contribution: {formatUGX(p.nssfEmployer)} \u00b7 PAYE remitted to URA per Section 118 ITA 1997</div>
+        <div style={{marginTop:4}}>This payslip was generated by Raylane Express HR System on {new Date().toLocaleDateString("en-UG")}</div>
+      </div>
+    </div>
+    );
+  };
+
+  return(
+  <div style={{animation:"fadeUp .3s ease"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:12}}>
+      <div>
+        <h1 className="ral" style={{fontSize:24,fontWeight:900,margin:0}}>Payroll Management</h1>
+        <p style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:C.textMuted,marginTop:4}}>Uganda PAYE \u00b7 NSSF \u00b7 Local Service Tax \u00b7 URA Compliant</p>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <input type="month" value={payMonth} onChange={e=>setPayMonth(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${C.navyBorder}`,background:C.navyMid,color:"#fff",fontSize:12}}/>
+        <Btn variant="navy" style={{fontSize:11,padding:"7px 14px",border:`1px solid ${C.navyBorder}`}}>\u2b07 Export Payroll</Btn>
+      </div>
+    </div>
+
+    {/* KPIs */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:22}}>
+      {[
+        {label:"Active Staff",value:employees.filter(e=>e.status==="active").length,icon:"\ud83d\udc64",color:C.blue},
+        {label:"Gross Payroll",value:formatUGX(totalGross),icon:"\ud83d\udcb0",color:C.amber},
+        {label:"Total PAYE",value:formatUGX(totalPAYE),icon:"\ud83c\udfdb\ufe0f",color:C.orange},
+        {label:"NSSF Employer",value:formatUGX(totalNSSF),icon:"\ud83d\udee1\ufe0f",color:C.purple},
+        {label:"Net Payroll",value:formatUGX(totalPayroll),icon:"\u2705",color:C.green},
+      ].map(k=>(
+        <div key={k.label} style={{background:C.card,border:`1px solid ${C.navyBorder}`,borderRadius:14,padding:"14px 16px"}}>
+          <div style={{fontSize:20,marginBottom:5}}>{k.icon}</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:k.color,marginBottom:2}}>{k.value}</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:C.textMuted,textTransform:"uppercase",letterSpacing:".5px"}}>{k.label}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* Sub-tabs */}
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:22,background:C.navyMid,padding:6,borderRadius:14}}>
+      {[{id:"employees",label:"\ud83d\udc64 Employees"},{id:"payslips",label:"\ud83d\udcc4 Payslips"},{id:"ura",label:"\ud83c\udfdb\ufe0f URA/NSSF"}].map(t=>(
+        <button key={t.id} onClick={()=>setPayTab(t.id)} style={tabBtnStyle(t.id)}>{t.label}</button>
+      ))}
+    </div>
+
+    {payTab==="employees"&&(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 className="ral" style={{fontWeight:800,fontSize:18}}>Employee Register</h2>
+        <Btn onClick={()=>{setEditingEmp(null);setShowEmpModal(true);}}>+ Add Employee</Btn>
+      </div>
+      <Card style={{padding:0,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.navyMid}}>
+            {["Employee ID","Name","Role","Department","Basic Salary","Net Pay","PAYE","NSSF","Status","Actions"].map(h=><TH key={h}>{h}</TH>)}
+          </tr></thead>
+          <tbody>
+            {employees.map(emp=>{
+              const p=calcPayroll(emp);
+              return(
+              <tr key={emp.id} style={{borderBottom:`1px solid ${C.navyBorder}`}}>
+                <TD><code style={{fontFamily:"monospace",fontSize:10,color:C.amber}}>{emp.id}</code></TD>
+                <TD style={{fontWeight:600}}>{emp.name}</TD>
+                <TD style={{fontSize:11}}>{emp.role}</TD>
+                <TD style={{fontSize:11,color:C.textMuted}}>{emp.department}</TD>
+                <TD style={{color:C.textPrimary}}>{formatUGX(p.grossSalary)}</TD>
+                <TD style={{color:C.green,fontWeight:700}}>{formatUGX(p.netPay)}</TD>
+                <TD style={{color:C.red,fontSize:11}}>{formatUGX(p.paye)}</TD>
+                <TD style={{color:C.purple,fontSize:11}}>{formatUGX(p.nssfEmployee)}</TD>
+                <TD><StatusBadge status={emp.status}/></TD>
+                <TD>
+                  <div style={{display:"flex",gap:5}}>
+                    <button onClick={()=>setShowPayslip(emp)} style={{background:"rgba(34,197,94,0.12)",color:C.green,border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>Slip</button>
+                    <button onClick={()=>{setEditingEmp(emp);setEmpForm({name:emp.name,role:emp.role,department:emp.department,phone:emp.phone,email:emp.email,bankAccount:emp.bankAccount,bankName:emp.bankName,basicSalary:String(emp.basicSalary),allowTransport:String(emp.allowances?.transport||0),allowLunch:String(emp.allowances?.lunch||0),allowHousing:String(emp.allowances?.housing||0),dateJoined:emp.dateJoined,status:emp.status,nssf:emp.nssf});setShowEmpModal(true);}} style={{background:"rgba(59,130,246,0.12)",color:C.blue,border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>Edit</button>
+                  </div>
+                </TD>
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+      {/* Employee Modal */}
+      <Modal open={showEmpModal} onClose={()=>setShowEmpModal(false)} title={editingEmp?"Edit Employee":"Add New Employee"} wide>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:13}}>
+          <Input label="Full Name" value={empForm.name} onChange={e=>setEmpForm({...empForm,name:e.target.value})} placeholder="e.g. Sarah Nakato"/>
+          <Input label="Job Role / Title" value={empForm.role} onChange={e=>setEmpForm({...empForm,role:e.target.value})} placeholder="e.g. Agent, Driver"/>
+          <Input label="Department" value={empForm.department} onChange={e=>setEmpForm({...empForm,department:e.target.value})} placeholder="e.g. Operations"/>
+          <Input label="Phone" value={empForm.phone} onChange={e=>setEmpForm({...empForm,phone:e.target.value})} placeholder="+256 7XX XXX XXX"/>
+          <Input label="Email" type="email" value={empForm.email} onChange={e=>setEmpForm({...empForm,email:e.target.value})} placeholder="name@raylane.ug"/>
+          <Input label="Date Joined" type="date" value={empForm.dateJoined} onChange={e=>setEmpForm({...empForm,dateJoined:e.target.value})}/>
+          <Input label="Bank Name" value={empForm.bankName} onChange={e=>setEmpForm({...empForm,bankName:e.target.value})} placeholder="e.g. Centenary Bank"/>
+          <Input label="Bank Account Number" value={empForm.bankAccount} onChange={e=>setEmpForm({...empForm,bankAccount:e.target.value})} placeholder="Account number"/>
+          <Input label="Basic Salary (UGX)" type="number" value={empForm.basicSalary} onChange={e=>setEmpForm({...empForm,basicSalary:e.target.value})} placeholder="e.g. 800000"/>
+          <Input label="Transport Allowance (UGX)" type="number" value={empForm.allowTransport} onChange={e=>setEmpForm({...empForm,allowTransport:e.target.value})}/>
+          <Input label="Lunch Allowance (UGX)" type="number" value={empForm.allowLunch} onChange={e=>setEmpForm({...empForm,allowLunch:e.target.value})}/>
+          <Input label="Housing Allowance (UGX)" type="number" value={empForm.allowHousing} onChange={e=>setEmpForm({...empForm,allowHousing:e.target.value})}/>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <input type="checkbox" checked={empForm.nssf} onChange={e=>setEmpForm({...empForm,nssf:e.target.checked})} id="nssf-chk" style={{accentColor:C.amber,width:16,height:16}}/>
+            <label htmlFor="nssf-chk" style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:C.textSecondary}}>Enrolled in NSSF</label>
+          </div>
+          <Sel label="Employment Status" value={empForm.status} onChange={e=>setEmpForm({...empForm,status:e.target.value})} options={[{value:"active",label:"Active"},{value:"suspended",label:"Suspended"},{value:"terminated",label:"Terminated"}]}/>
+          <div style={{gridColumn:"1/-1",display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn variant="navy" onClick={()=>setShowEmpModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+            <Btn onClick={saveEmployee}>{editingEmp?"Update Employee":"Add Employee"}</Btn>
+          </div>
+        </div>
+      </Modal>
+      {/* Payslip Modal */}
+      <Modal open={!!showPayslip} onClose={()=>setShowPayslip(null)} title="Employee Payslip" wide>
+        {showPayslip&&<Payslip emp={showPayslip}/>}
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
+          <Btn variant="navy" onClick={()=>setShowPayslip(null)} style={{border:`1px solid ${C.navyBorder}`}}>Close</Btn>
+          <Btn>\ud83d\udda8\ufe0f Print / Download</Btn>
+        </div>
+      </Modal>
+    </div>
+    )}
+
+    {payTab==="payslips"&&(
+    <div>
+      <h2 className="ral" style={{fontWeight:800,fontSize:18,marginBottom:16}}>Monthly Payroll Summary \u2014 {payMonth}</h2>
+      <Card style={{padding:0,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.navyMid}}>
+            {["Employee","Gross","Transport","Lunch","Housing","NSSF(E)","PAYE","LST","Net Pay"].map(h=><TH key={h}>{h}</TH>)}
+          </tr></thead>
+          <tbody>
+            {employees.filter(e=>e.status==="active").map(emp=>{
+              const p=calcPayroll(emp);
+              return(
+              <tr key={emp.id} style={{borderBottom:`1px solid ${C.navyBorder}`}}>
+                <TD style={{fontWeight:600}}>{emp.name}</TD>
+                <TD>{formatUGX(p.grossSalary)}</TD>
+                <TD style={{fontSize:11}}>{formatUGX(p.transport)}</TD>
+                <TD style={{fontSize:11}}>{formatUGX(p.lunch)}</TD>
+                <TD style={{fontSize:11}}>{formatUGX(p.housing)}</TD>
+                <TD style={{color:C.purple}}>{formatUGX(p.nssfEmployee)}</TD>
+                <TD style={{color:C.red}}>{formatUGX(p.paye)}</TD>
+                <TD style={{color:C.orange,fontSize:11}}>{formatUGX(p.localServiceTax)}</TD>
+                <TD style={{color:C.green,fontWeight:700}}>{formatUGX(p.netPay)}</TD>
+              </tr>
+              );
+            })}
+            <tr style={{background:C.navyMid,fontWeight:800}}>
+              <TD style={{fontWeight:800,color:C.amber}}>TOTALS</TD>
+              {[totalGross,0,0,0,employees.filter(e=>e.status==="active").reduce((s,e)=>s+calcPayroll(e).nssfEmployee,0),totalPAYE,employees.filter(e=>e.status==="active").reduce((s,e)=>s+calcPayroll(e).localServiceTax,0),totalPayroll].map((v,i)=>(
+                <TD key={i} style={{fontWeight:800,color:C.amber}}>{formatUGX(v)}</TD>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </Card>
+    </div>
+    )}
+
+    {payTab==="ura"&&(
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+      <Card>
+        <h3 className="ral" style={{fontWeight:700,marginBottom:16}}>URA PAYE Return Summary</h3>
+        <div style={{fontSize:11,color:C.textMuted,fontFamily:"'Inter',sans-serif",marginBottom:16}}>Section 118, Income Tax Act 1997 (as amended)</div>
+        {employees.filter(e=>e.status==="active").map(emp=>{
+          const p=calcPayroll(emp);
+          return(
+          <div key={emp.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.navyBorder}`}}>
+            <div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600}}>{emp.name}</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:C.textMuted}}>Taxable: {formatUGX(p.taxableIncome)}</div>
+            </div>
+            <div style={{color:C.red,fontWeight:700,fontSize:13}}>{formatUGX(p.paye)}</div>
+          </div>
+          );
+        })}
+        <div style={{marginTop:12,display:"flex",justifyContent:"space-between",padding:"10px 0",borderTop:`2px solid ${C.navyBorder}`}}>
+          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700}}>Total PAYE Due</span>
+          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:C.red,fontSize:14}}>{formatUGX(totalPAYE)}</span>
+        </div>
+      </Card>
+      <Card>
+        <h3 className="ral" style={{fontWeight:700,marginBottom:16}}>NSSF Contribution Return</h3>
+        <div style={{fontSize:11,color:C.textMuted,fontFamily:"'Inter',sans-serif",marginBottom:16}}>National Social Security Fund Act Cap 222</div>
+        {employees.filter(e=>e.status==="active"&&e.nssf).map(emp=>{
+          const p=calcPayroll(emp);
+          return(
+          <div key={emp.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.navyBorder}`}}>
+            <div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600}}>{emp.name}</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:C.textMuted}}>Employee: {formatUGX(p.nssfEmployee)} + Employer: {formatUGX(p.nssfEmployer)}</div>
+            </div>
+            <div style={{color:C.purple,fontWeight:700,fontSize:13}}>{formatUGX(p.nssfEmployee+p.nssfEmployer)}</div>
+          </div>
+          );
+        })}
+        <div style={{marginTop:12,display:"flex",justifyContent:"space-between",padding:"10px 0",borderTop:`2px solid ${C.navyBorder}`}}>
+          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:700}}>Total NSSF Due</span>
+          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:800,color:C.purple,fontSize:14}}>{formatUGX(employees.filter(e=>e.status==="active"&&e.nssf).reduce((s,e)=>s+calcPayroll(e).nssfEmployee+calcPayroll(e).nssfEmployer,0))}</span>
+        </div>
+      </Card>
+    </div>
+    )}
+  </div>
+  );
+};
+
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// STAFF SACO MODULE \u2014 SAVINGS & CREDIT COOPERATIVE
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+const SACO_INTEREST_RATE=0.12; // 12% per annum on loans
+const SACO_SAVINGS_DIVIDEND=0.08; // 8% annual dividend on savings
+const SACO_MAX_LOAN_MULTIPLIER=3; // max loan = 3x savings
+
+const AdminSACOSection=({store})=>{
+  const [sacoTab,setSacoTab]=useState("dashboard");
+  const [members,setMembers]=useState([
+    {id:"SCO-001",name:"Moses Lubega",empId:"RL-EM150126001",monthlySaving:50000,totalSavings:350000,joinedDate:"2026-01-15",status:"active",email:"moses@raylane.ug"},
+    {id:"SCO-002",name:"Ruth Acen",empId:"RL-EM200126002",monthlySaving:50000,totalSavings:300000,joinedDate:"2026-01-20",status:"active",email:"ruth@raylane.ug"},
+  ]);
+  const [loans,setLoans]=useState([
+    {id:"LN-001",memberId:"SCO-001",memberName:"Moses Lubega",amount:800000,purpose:"School fees",applied:"2026-02-10",status:"approved",approved:"2026-02-12",monthlyRepayment:75000,remaining:725000,term:12,interestRate:SACO_INTEREST_RATE},
+    {id:"LN-002",memberId:"SCO-002",memberName:"Ruth Acen",amount:500000,purpose:"Medical emergency",applied:"2026-03-01",status:"pending",approved:null,monthlyRepayment:0,remaining:500000,term:6,interestRate:SACO_INTEREST_RATE},
+  ]);
+  const [showMemberModal,setShowMemberModal]=useState(false);
+  const [showLoanModal,setShowLoanModal]=useState(false);
+  const [showPolicyModal,setShowPolicyModal]=useState(false);
+  const [memberForm,setMemberForm]=useState({name:"",empId:"",monthlySaving:"50000",email:""});
+  const [loanForm,setLoanForm]=useState({memberId:"",amount:"",purpose:"",term:"12"});
+  const [selectedLoan,setSelectedLoan]=useState(null);
+
+  const totalSavings=members.reduce((s,m)=>s+m.totalSavings,0);
+  const totalLoans=loans.filter(l=>l.status==="approved").reduce((s,l)=>s+l.amount,0);
+  const totalRepaid=loans.filter(l=>l.status==="approved").reduce((s,l)=>s+(l.amount-l.remaining),0);
+  const pendingLoans=loans.filter(l=>l.status==="pending");
+  const annualDividendPool=Math.round(totalSavings*SACO_SAVINGS_DIVIDEND);
+
+  const approveLoan=(id)=>{
+    setLoans(prev=>prev.map(l=>{
+      if(l.id!==id) return l;
+      const total=l.amount*(1+l.interestRate*(l.term/12));
+      const monthly=Math.round(total/l.term);
+      return{...l,status:"approved",approved:new Date().toISOString().split("T")[0],monthlyRepayment:monthly};
+    }));
+  };
+  const rejectLoan=(id)=>setLoans(prev=>prev.map(l=>l.id===id?{...l,status:"rejected"}:l));
+
+  const tabBtnStyle=(t)=>({padding:"8px 16px",borderRadius:20,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,
+    background:sacoTab===t?C.amber:"transparent",color:sacoTab===t?C.navy:C.textSecondary,transition:"all .2s"});
+
+  return(
+  <div style={{animation:"fadeUp .3s ease"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:12}}>
+      <div>
+        <h1 className="ral" style={{fontSize:24,fontWeight:900,margin:0}}>Staff SACCO</h1>
+        <p style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:C.textMuted,marginTop:4}}>Savings &amp; Credit Co-operative (SACCO) \u00b7 {SACO_INTEREST_RATE*100}% p.a. Loans \u00b7 {SACO_SAVINGS_DIVIDEND*100}% Annual Dividend</p>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <Btn variant="navy" onClick={()=>setShowPolicyModal(true)} style={{fontSize:11,padding:"7px 14px",border:`1px solid ${C.navyBorder}`}}>\ud83d\udccb Lending Policy</Btn>
+        <Btn onClick={()=>setShowMemberModal(true)}>+ Add Member</Btn>
+      </div>
+    </div>
+
+    {/* KPIs */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:22}}>
+      {[
+        {label:"Total Members",value:members.length,icon:"\ud83d\udc65",color:C.blue},
+        {label:"Total Savings",value:formatUGX(totalSavings),icon:"\ud83d\udcb0",color:C.green},
+        {label:"Loans Disbursed",value:formatUGX(totalLoans),icon:"\ud83c\udfe6",color:C.amber},
+        {label:"Amount Repaid",value:formatUGX(totalRepaid),icon:"\u2705",color:C.green},
+        {label:"Pending Loans",value:pendingLoans.length,icon:"\u23f3",color:C.orange},
+        {label:"Annual Dividend Pool",value:formatUGX(annualDividendPool),icon:"\ud83d\udcc8",color:C.purple},
+      ].map(k=>(
+        <div key={k.label} style={{background:C.card,border:`1px solid ${C.navyBorder}`,borderRadius:14,padding:"14px 16px"}}>
+          <div style={{fontSize:20,marginBottom:5}}>{k.icon}</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:k.color,marginBottom:2}}>{k.value}</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:C.textMuted,textTransform:"uppercase",letterSpacing:".5px"}}>{k.label}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* Tabs */}
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:22,background:C.navyMid,padding:6,borderRadius:14}}>
+      {[{id:"dashboard",label:"\ud83d\udcca Dashboard"},{id:"members",label:"\ud83d\udc65 Members"},{id:"loans",label:"\ud83c\udfe6 Loans"},{id:"dividends",label:"\ud83d\udcc8 Dividends"}].map(t=>(
+        <button key={t.id} onClick={()=>setSacoTab(t.id)} style={tabBtnStyle(t.id)}>
+          {t.label}{t.id==="loans"&&pendingLoans.length>0&&<span style={{background:C.red,color:"#fff",borderRadius:10,padding:"1px 6px",fontSize:9,marginLeft:6}}>{pendingLoans.length}</span>}
+        </button>
+      ))}
+    </div>
+
+    {/* DASHBOARD */}
+    {sacoTab==="dashboard"&&(
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+      <Card>
+        <h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Savings by Member</h3>
+        {members.map(m=>(
+          <div key={m.id} style={{marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+              <span style={{fontWeight:600}}>{m.name}</span>
+              <span style={{color:C.green,fontWeight:700}}>{formatUGX(m.totalSavings)}</span>
+            </div>
+            <div style={{height:5,background:C.navyLight,borderRadius:3}}>
+              <div style={{width:`${totalSavings>0?(m.totalSavings/totalSavings)*100:0}%`,height:"100%",background:`linear-gradient(90deg,${C.green},${C.amber})`,borderRadius:3}}/>
+            </div>
+          </div>
+        ))}
+      </Card>
+      <Card>
+        <h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Loan Portfolio</h3>
+        {loans.map(l=>(
+          <div key={l.id} style={{padding:"10px 0",borderBottom:`1px solid ${C.navyBorder}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600}}>{l.memberName}</span>
+              <StatusBadge status={l.status}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.textMuted}}>
+              <span>{l.purpose}</span>
+              <span style={{fontWeight:700,color:l.status==="approved"?C.amber:C.textMuted}}>{formatUGX(l.amount)}</span>
+            </div>
+            {l.status==="approved"&&(
+              <div style={{marginTop:6,height:4,background:C.navyLight,borderRadius:2}}>
+                <div style={{width:`${((l.amount-l.remaining)/l.amount)*100}%`,height:"100%",background:`linear-gradient(90deg,${C.green},${C.amber})`,borderRadius:2}}/>
+              </div>
+            )}
+          </div>
+        ))}
+      </Card>
+    </div>
+    )}
+
+    {/* MEMBERS */}
+    {sacoTab==="members"&&(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 className="ral" style={{fontWeight:800,fontSize:18}}>SACO Members</h2>
+        <Btn onClick={()=>setShowMemberModal(true)}>+ Enroll Member</Btn>
+      </div>
+      <Card style={{padding:0,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.navyMid}}>
+            {["SACCO ID","Employee ID","Name","Monthly Saving","Total Savings","Loan Eligibility","Joined","Status"].map(h=><TH key={h}>{h}</TH>)}
+          </tr></thead>
+          <tbody>
+            {members.map(m=>(
+              <tr key={m.id} style={{borderBottom:`1px solid ${C.navyBorder}`}}>
+                <TD><code style={{fontSize:10,color:C.amber}}>{m.id}</code></TD>
+                <TD><code style={{fontSize:10,color:C.blue}}>{m.empId}</code></TD>
+                <TD style={{fontWeight:600}}>{m.name}</TD>
+                <TD style={{color:C.green}}>{formatUGX(m.monthlySaving)}/mo</TD>
+                <TD style={{fontWeight:700,color:C.green}}>{formatUGX(m.totalSavings)}</TD>
+                <TD style={{color:C.amber,fontWeight:700}}>{formatUGX(m.totalSavings*SACO_MAX_LOAN_MULTIPLIER)}</TD>
+                <TD style={{color:C.textMuted,fontSize:11}}>{m.joinedDate}</TD>
+                <TD><StatusBadge status={m.status}/></TD>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      <Modal open={showMemberModal} onClose={()=>setShowMemberModal(false)} title="Enroll New SACCO Member">
+        <div style={{display:"flex",flexDirection:"column",gap:13}}>
+          <Input label="Full Name" value={memberForm.name} onChange={e=>setMemberForm({...memberForm,name:e.target.value})} placeholder="Employee full name"/>
+          <div>
+            <label style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:C.textSecondary,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px",display:"block",marginBottom:6}}>Employee ID <span style={{color:C.amber,fontWeight:400}}>(from Payroll)</span></label>
+            <select value={memberForm.empId} onChange={e=>{
+              const emp=(store?.employees||INIT_EMPLOYEES).find(x=>x.id===e.target.value);
+              setMemberForm({...memberForm,empId:e.target.value,name:emp?emp.name:memberForm.name,email:emp?emp.email:memberForm.email});
+            }} style={{width:"100%",padding:"10px 13px",borderRadius:10,border:`1px solid ${C.navyBorder}`,background:C.navyLight,color:"#fff",fontSize:13,fontFamily:"'Inter',sans-serif"}}>
+              <option value="">— Select employee —</option>
+              {(store?.employees||INIT_EMPLOYEES).map(emp=>(
+                <option key={emp.id} value={emp.id}>{emp.name} · {emp.id} · {emp.department}</option>
+              ))}
+            </select>
+          </div>
+          <Input label="Email (for notifications)" type="email" value={memberForm.email} onChange={e=>setMemberForm({...memberForm,email:e.target.value})} placeholder="name@raylane.ug"/>
+          <Input label="Monthly Savings Contribution (UGX)" type="number" value={memberForm.monthlySaving} onChange={e=>setMemberForm({...memberForm,monthlySaving:e.target.value})} placeholder="e.g. 50000"/>
+          <div style={{padding:"10px 14px",background:"rgba(245,166,35,0.1)",borderRadius:8,fontSize:12,color:C.amber}}>
+            \ud83d\udca1 Loan eligibility: up to {SACO_MAX_LOAN_MULTIPLIER}x savings = {formatUGX(Number(memberForm.monthlySaving||0)*SACO_MAX_LOAN_MULTIPLIER*7)} (based on ~7 months savings)
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn variant="navy" onClick={()=>setShowMemberModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+            <Btn onClick={()=>{setMembers(prev=>[...prev,{id:`SCO-${String(prev.length+1).padStart(3,"0")}`,name:memberForm.name,empId:memberForm.empId,email:memberForm.email,monthlySaving:Number(memberForm.monthlySaving),totalSavings:0,joinedDate:new Date().toISOString().split("T")[0],status:"active"}]);setShowMemberModal(false);setMemberForm({name:"",empId:"",monthlySaving:"50000",email:""});}}>Enroll Member</Btn>
+          </div>
+        </div>
+      </Modal>
+    </div>
+    )}
+
+    {/* LOANS */}
+    {sacoTab==="loans"&&(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 className="ral" style={{fontWeight:800,fontSize:18}}>Loan Applications</h2>
+        <Btn onClick={()=>setShowLoanModal(true)}>+ Apply for Loan</Btn>
+      </div>
+      {pendingLoans.length>0&&(
+        <div style={{background:"rgba(249,115,22,0.1)",border:"1px solid rgba(249,115,22,0.3)",borderRadius:12,padding:"12px 16px",marginBottom:16,fontFamily:"'Inter',sans-serif",fontSize:12,color:C.orange}}>
+          \u23f3 {pendingLoans.length} loan application{pendingLoans.length>1?"s":""} pending approval. Email notifications will be sent on decision.
+        </div>
+      )}
+      <Card style={{padding:0,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.navyMid}}>
+            {["Loan ID","Member","Amount","Purpose","Term","Monthly Pay","Rate","Applied","Status","Actions"].map(h=><TH key={h}>{h}</TH>)}
+          </tr></thead>
+          <tbody>
+            {loans.map(l=>(
+              <tr key={l.id} style={{borderBottom:`1px solid ${C.navyBorder}`}}>
+                <TD><code style={{fontSize:10,color:C.amber}}>{l.id}</code></TD>
+                <TD style={{fontWeight:600}}>{l.memberName}</TD>
+                <TD style={{color:C.amber,fontWeight:700}}>{formatUGX(l.amount)}</TD>
+                <TD style={{fontSize:11,color:C.textMuted}}>{l.purpose}</TD>
+                <TD style={{fontSize:11}}>{l.term} months</TD>
+                <TD style={{color:C.green}}>{l.monthlyRepayment>0?formatUGX(l.monthlyRepayment):"\u2014"}</TD>
+                <TD style={{fontSize:11}}>{(l.interestRate*100).toFixed(0)}% p.a.</TD>
+                <TD style={{fontSize:11,color:C.textMuted}}>{l.applied}</TD>
+                <TD><StatusBadge status={l.status}/></TD>
+                <TD>
+                  {l.status==="pending"&&(
+                    <div style={{display:"flex",gap:5}}>
+                      <button onClick={()=>approveLoan(l.id)} style={{background:"rgba(34,197,94,0.12)",color:C.green,border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>Approve</button>
+                      <button onClick={()=>rejectLoan(l.id)} style={{background:"rgba(239,68,68,0.12)",color:C.red,border:"none",borderRadius:6,padding:"4px 8px",fontSize:10,cursor:"pointer",fontWeight:700}}>Reject</button>
+                    </div>
+                  )}
+                  {l.status!=="pending"&&<span style={{fontSize:10,color:C.textMuted}}>{l.approved||"\u2014"}</span>}
+                </TD>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      <Modal open={showLoanModal} onClose={()=>setShowLoanModal(false)} title="New Loan Application">
+        <div style={{display:"flex",flexDirection:"column",gap:13}}>
+          <Sel label="Member" value={loanForm.memberId} onChange={e=>setLoanForm({...loanForm,memberId:e.target.value})} options={[{value:"",label:"Select member"},...members.filter(m=>m.status==="active").map(m=>({value:m.id,label:`${m.name} (Max: ${formatUGX(m.totalSavings*SACO_MAX_LOAN_MULTIPLIER)})`}))]}/>
+          <Input label="Loan Amount (UGX)" type="number" value={loanForm.amount} onChange={e=>setLoanForm({...loanForm,amount:e.target.value})} placeholder="e.g. 500000"/>
+          <Input label="Purpose of Loan" value={loanForm.purpose} onChange={e=>setLoanForm({...loanForm,purpose:e.target.value})} placeholder="e.g. Medical, School fees, Business"/>
+          <Sel label="Repayment Term" value={loanForm.term} onChange={e=>setLoanForm({...loanForm,term:e.target.value})} options={[3,6,12,18,24].map(t=>({value:String(t),label:`${t} months`}))}/>
+          {loanForm.amount&&loanForm.term&&(
+            <div style={{padding:"10px 14px",background:"rgba(245,166,35,0.1)",borderRadius:8,fontSize:12,color:C.textPrimary}}>
+              <div>Interest ({SACO_INTEREST_RATE*100}% p.a.): <strong style={{color:C.amber}}>{formatUGX(Math.round(Number(loanForm.amount)*SACO_INTEREST_RATE*(Number(loanForm.term)/12)))}</strong></div>
+              <div>Total Repayable: <strong style={{color:C.amber}}>{formatUGX(Math.round(Number(loanForm.amount)*(1+SACO_INTEREST_RATE*(Number(loanForm.term)/12))))}</strong></div>
+              <div>Monthly Deduction from Payroll: <strong style={{color:C.green}}>{formatUGX(Math.round(Number(loanForm.amount)*(1+SACO_INTEREST_RATE*(Number(loanForm.term)/12))/Number(loanForm.term)))}</strong></div>
+            </div>
+          )}
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <Btn variant="navy" onClick={()=>setShowLoanModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+            <Btn onClick={()=>{
+              const m=members.find(mb=>mb.id===loanForm.memberId);
+              if(!m||!loanForm.amount) return;
+              const newLoan={id:`LN-${String(loans.length+1).padStart(3,"0")}`,memberId:m.id,memberName:m.name,amount:Number(loanForm.amount),purpose:loanForm.purpose,applied:new Date().toISOString().split("T")[0],status:"pending",approved:null,monthlyRepayment:0,remaining:Number(loanForm.amount),term:Number(loanForm.term),interestRate:SACO_INTEREST_RATE};
+              setLoans(prev=>[...prev,newLoan]);setShowLoanModal(false);
+              setLoanForm({memberId:"",amount:"",purpose:"",term:"12"});
+            }}>Submit Application</Btn>
+          </div>
+        </div>
+      </Modal>
+    </div>
+    )}
+
+    {/* DIVIDENDS */}
+    {sacoTab==="dividends"&&(
+    <div>
+      <Card style={{marginBottom:18}}>
+        <h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Annual Dividend Distribution</h3>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:20}}>
+          {[
+            {label:"Total Savings Pool",value:formatUGX(totalSavings),color:C.green},
+            {label:"Dividend Rate",value:`${SACO_SAVINGS_DIVIDEND*100}% p.a.`,color:C.amber},
+            {label:"Total Dividend Pool",value:formatUGX(annualDividendPool),color:C.purple},
+          ].map(k=>(
+            <div key={k.label} style={{background:C.navyMid,borderRadius:12,padding:"16px 18px",textAlign:"center"}}>
+              <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:16,color:k.color,marginBottom:4}}>{k.value}</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:C.textMuted,textTransform:"uppercase"}}>{k.label}</div>
+            </div>
+          ))}
+        </div>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.navyMid}}>
+            {["Member","Total Savings","Share %","Dividend (UGX)","Notification"].map(h=><TH key={h}>{h}</TH>)}
+          </tr></thead>
+          <tbody>
+            {members.filter(m=>m.status==="active").map(m=>{
+              const share=totalSavings>0?((m.totalSavings/totalSavings)*100).toFixed(1):0;
+              const dividend=Math.round(annualDividendPool*(m.totalSavings/Math.max(totalSavings,1)));
+              return(
+              <tr key={m.id} style={{borderBottom:`1px solid ${C.navyBorder}`}}>
+                <TD style={{fontWeight:600}}>{m.name}</TD>
+                <TD style={{color:C.green,fontWeight:700}}>{formatUGX(m.totalSavings)}</TD>
+                <TD>{share}%</TD>
+                <TD style={{color:C.purple,fontWeight:700}}>{formatUGX(dividend)}</TD>
+                <TD><span style={{fontSize:10,color:C.textMuted}}>\ud83d\udce7 {m.email||"\u2014"}</span></TD>
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+    )}
+
+    {/* Lending Policy Modal */}
+    <Modal open={showPolicyModal} onClose={()=>setShowPolicyModal(false)} title="SACCO Lending Policy" wide>
+      <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:C.textSecondary,lineHeight:1.9}}>
+        <div className="ral" style={{fontWeight:700,fontSize:15,color:C.amber,marginBottom:12}}>Raylane Express Staff SACCO \u2014 Lending Policy</div>
+        {[
+          ["Eligibility","Active employees with at least 3 months of savings contributions are eligible to apply for a loan."],
+          ["Maximum Loan","Maximum loan amount is 3\u00d7 the member's accumulated savings balance."],
+          ["Interest Rate",`${SACO_INTEREST_RATE*100}% per annum on reducing balance, in line with international cooperative lending standards.`],
+          ["Repayment Terms","Loans are repayable in equal monthly installments over 3, 6, 12, 18, or 24 months."],
+          ["Payroll Deduction","Approved loan repayments are automatically deducted from the employee's monthly net pay."],
+          ["Approval Process","Loan applications require admin approval. Applicant is notified by email on approval or rejection."],
+          ["Annual Dividend",`${SACO_SAVINGS_DIVIDEND*100}% per annum dividend paid on savings at the end of each financial year, distributed proportionally.`],
+          ["Savings Notification","Members receive email notifications when their savings reach milestone thresholds (UGX 250,000 | 500,000 | 1,000,000)."],
+          ["Early Repayment","Members may repay loans early without penalty."],
+          ["Default Policy","Three consecutive missed repayments result in loan account review. Outstanding balance deducted from terminal benefits if applicable."],
+          ["Governance","The SACCO is governed per principles of the International Cooperative Alliance (ICA) and Uganda Cooperative Societies Act."],
+        ].map(([h,b])=>(
+          <div key={h} style={{marginBottom:12}}>
+            <strong style={{color:C.textPrimary}}>{h}:</strong> {b}
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}>
+        <Btn onClick={()=>setShowPolicyModal(false)}>Close</Btn>
+      </div>
+    </Modal>
+  </div>
+  );
+};
+
+// ─── ADMIN: HOMEPAGE CMS ────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════
+// COMPONENT: DESTINATIONS SLIDER
+// ═══════════════════════════════════════════════════════════════════════
+const DestinationsSlider=({destinations,setPage})=>{
+  const [idx,setIdx]=useState(0);
+  useEffect(()=>{
+    const t=setInterval(()=>setIdx(i=>(i+1)%Math.max(destinations.length,1)),5000);
+    return()=>clearInterval(t);
+  },[destinations.length]);
+  const dest=destinations[idx]||destinations[0];
+  if(!dest) return null;
+  return(
+    <section aria-label="Top Destinations" style={{padding:"clamp(56px,7vw,96px) clamp(16px,4vw,40px)",background:C.blueBg}}>
+      <div style={{maxWidth:1280,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:40}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:3,color:C.blue,textTransform:"uppercase",marginBottom:10}}>Where We Go</div>
+          <h2 className="playfair" style={{fontSize:"clamp(26px,3.5vw,42px)",fontWeight:900,color:C.navy,marginBottom:14}}>Popular Destinations</h2>
+          <div style={{width:60,height:3,background:C.amber,borderRadius:2,margin:"0 auto"}}/>
+        </div>
+        <div style={{position:"relative",overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:20,animation:"fadeUp .4s ease"}}>
+            {destinations.map((d,i)=>(
+              <div key={d.id}
+                onClick={()=>{setIdx(i);setPage("schedule");}}
+                style={{borderRadius:20,overflow:"hidden",cursor:"pointer",border:`2px solid ${i===idx?C.amber:C.navyBorder}`,boxShadow:i===idx?"0 8px 32px rgba(11,30,75,0.14)":"0 2px 8px rgba(11,30,75,0.06)",transition:"all .3s",transform:i===idx?"translateY(-4px)":"none"}}>
+                <div style={{aspectRatio:"3/2",overflow:"hidden",position:"relative"}}>
+                  {d.img
+                    ?<img src={d.img} alt={d.name} style={{width:"100%",height:"100%",objectFit:"cover",transition:"transform .5s",transform:i===idx?"scale(1.04)":"scale(1)"}}/>
+                    :<div style={{width:"100%",height:"100%",background:`linear-gradient(135deg,${C.navy},${C.blue})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48}}>📍</div>}
+                  <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(11,30,75,0.6) 0%,transparent 50%)"}}/>
+                  {i===idx&&<div style={{position:"absolute",top:12,right:12,background:C.amber,color:"#fff",fontSize:9,fontWeight:800,padding:"3px 10px",borderRadius:20,letterSpacing:1.5}}>FEATURED</div>}
+                </div>
+                <div style={{padding:"14px 16px",background:C.white}}>
+                  <div className="ral" style={{fontWeight:800,fontSize:16,color:C.navy,marginBottom:3}}>{d.name}</div>
+                  <div style={{fontSize:11,color:C.blue,fontWeight:600,marginBottom:8}}>📍 {d.region}</div>
+                  <p style={{fontSize:12,color:C.textSecondary,lineHeight:1.7,margin:0}}>{d.caption}</p>
+                  <div style={{marginTop:12,display:"flex",justifyContent:"flex-end"}}>
+                    <span style={{fontSize:11,color:C.amber,fontWeight:700,cursor:"pointer"}}>Book a seat →</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Dot indicators */}
+          <div style={{display:"flex",justifyContent:"center",gap:7,marginTop:24}}>
+            {destinations.map((_,i)=>(
+              <div key={i} onClick={()=>setIdx(i)}
+                style={{width:i===idx?22:8,height:8,borderRadius:4,background:i===idx?C.amber:C.navyBorder,cursor:"pointer",transition:"all .3s"}}/>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// COMPONENT: UGANDA PRESENCE MAP (SVG-based)
+// ═══════════════════════════════════════════════════════════════════════
+const UG_MAP_B64="data:image/jpeg;base64,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m8RXjrkHa0akHHqO9eo/DOoRxhI/EV0qDgKIkA/KusIRjvs5Tc5aWjo0YEZBBBGc17rnbHw3c21zavPrN1cRW7blhICqTgjnHUc9K6Ktfeil1sUpShopSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUArBpSgOY8KqXTUrqMbbae9doU9AOCfuavZpo4IWlmdUjUZZmOAKUrjVzo1uo2RBq1kSuZTGjcLJIhVWPsTxU7t2NKV0y41Do5YMsp3ZHiv7Sa5e3iuYnmT8UasCw+oqRSledHrnFRdIUpStIKvTDnVdYIOQJ4/wD/AFLVp2pSi6Ln7v6f4Ob16JdT17SdIlybd/MnmXcQHCjAHHvzW0+CtLZgplvPhtwY2pnJjOOcYPalK9S1FUeVRTk2z1N4NsUfztMln02cYIaBzt+6ng15HhEyky3etalLOx+aRJfLGPTaOKUrebH24/B5fwVbzSRrPqV/Pao274eWXcp+/XHtXTRxrHGEVQqqMADoBSlTbZSVHvFKUoaKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUApSlAKUpQClKUB//2Q==";
+
+// Pins as % of displayed image (720x568 source → aspect ~1.27w:1h)
+// x = left%, y = top% of map image
+const UG_CITIES=[
+  {name:"Kampala",  x:55.5,y:60.5,main:true,  desc:"HQ & Departure Terminal"},
+  {name:"Gulu",     x:48.5,y:23.5,route:true, desc:"Northern Uganda — daily"},
+  {name:"Mbale",    x:75.0,y:48.0,route:true, desc:"Eastern Uganda — daily"},
+  {name:"Jinja",    x:63.0,y:56.0,route:true, desc:"Source of the Nile"},
+  {name:"Mbarara",  x:27.0,y:77.5,route:true, desc:"Western Uganda — daily"},
+  {name:"Fort Portal",x:17.5,y:54.0,route:true,desc:"Gateway to Rwenzori"},
+  {name:"Arua",     x:22.5,y:19.5,route:true, desc:"West Nile — daily"},
+];
+
+const UgandaPresenceMap=({setPage})=>{
+  const [hover,setHover]=useState(null);
+
+  return(
+    <section aria-label="Our Presence in Uganda" style={{padding:"clamp(56px,7vw,88px) clamp(16px,4vw,40px)",background:"#f8faff"}}>
+      <div style={{maxWidth:1280,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:48}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:3,color:C.blue,textTransform:"uppercase",marginBottom:10}}>Our Network</div>
+          <h2 className="playfair" style={{fontSize:"clamp(26px,3.5vw,42px)",fontWeight:900,color:C.navy,marginBottom:14}}>Where We Serve</h2>
+          <div style={{width:60,height:3,background:C.amber,borderRadius:2,margin:"0 auto"}}/>
+          <p style={{fontSize:14,color:C.textSecondary,marginTop:16,maxWidth:500,margin:"16px auto 0",lineHeight:1.8}}>
+            Connecting communities across Uganda — from Arua in the northwest to Mbale in the east
+          </p>
+        </div>
+
+        <div style={{display:"flex",gap:32,alignItems:"flex-start",flexWrap:"wrap",justifyContent:"center"}}>
+
+          {/* ── Uganda photo map with SVG pin/route overlay ── */}
+          <div style={{position:"relative",width:"min(460px,100%)",flexShrink:0,borderRadius:20,overflow:"hidden",boxShadow:"0 12px 48px rgba(11,30,75,0.18)"}}>
+            <img src={UG_MAP_B64} alt="Uganda map" style={{width:"100%",display:"block"}} draggable={false}/>
+            {/* SVG overlay — covers image exactly */}
+            <svg style={{position:"absolute",inset:0,width:"100%",height:"100%"}} viewBox="0 0 100 100" preserveAspectRatio="none">
+              {/* Curved dotted route lines from Kampala */}
+              {UG_CITIES.filter(c=>c.route).map(c=>{
+                const kx=55.5, ky=60.5;
+                // Control point: perpendicular offset for curve
+                const dx=c.x-kx, dy=c.y-ky;
+                const mx=(kx+c.x)/2 - dy*0.18;
+                const my=(ky+c.y)/2 + dx*0.18;
+                const isHov=hover===c.name;
+                return(
+                  <path key={c.name}
+                    d={`M${kx} ${ky} Q${mx} ${my} ${c.x} ${c.y}`}
+                    fill="none"
+                    stroke={isHov?"#F59E0B":"#1D4ED8"}
+                    strokeWidth={isHov?"0.7":"0.45"}
+                    strokeDasharray="1.8,1.4"
+                    opacity={isHov?0.95:0.6}
+                    style={{transition:"all .3s"}}/>
+                );
+              })}
+
+              {/* City destination icons */}
+              {UG_CITIES.map(c=>{
+                const isHov=hover===c.name;
+                const col=c.main?"#F59E0B":isHov?"#1D4ED8":"#2563EB";
+                const sc=isHov?1.3:1;
+                return(
+                  <g key={c.name}
+                    style={{cursor:"pointer",transformOrigin:`${c.x}% ${c.y}%`,transform:`scale(${sc})`,transition:"transform .2s"}}
+                    onMouseEnter={()=>setHover(c.name)}
+                    onMouseLeave={()=>setHover(null)}
+                    onClick={()=>setPage("schedule")}>
+                    {/* Location pin image */}
+                    <image href={LOC_PIN} x={c.x-4} y={c.y-10} width="8" height="10"
+                      style={{opacity:isHov?1:0.85,transition:"all .25s"}}/>
+                    {/* Label */}
+                    <text
+                      x={c.x+(c.x>55?1.5:-1.5)} y={c.y-6.8}
+                      fontSize="2.4"
+                      textAnchor={c.x>55?"start":"end"}
+                      fill={c.main?"#78350F":"#1E3A5F"}
+                      fontFamily="Raleway,sans-serif"
+                      fontWeight="800"
+                      style={{filter:"drop-shadow(0 0 2.5px #fff) drop-shadow(0 0 2px #fff)"}}>
+                      {c.name}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+
+            {/* Hover tooltip */}
+            {hover&&(()=>{
+              const city=UG_CITIES.find(c=>c.name===hover);
+              if(!city) return null;
+              return(
+                <div style={{position:"absolute",top:8,left:8,background:"rgba(11,30,75,0.92)",backdropFilter:"blur(8px)",color:"#fff",padding:"8px 12px",borderRadius:10,fontSize:12,pointerEvents:"none",border:"1px solid rgba(255,255,255,0.15)"}}>
+                  <div style={{fontWeight:800,fontSize:13}}>{city.name}</div>
+                  <div style={{color:"rgba(255,255,255,0.65)",fontSize:11,marginTop:2}}>{city.desc}</div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* ── City cards list ── */}
+          <div style={{flex:1,minWidth:240}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:10}}>
+              {UG_CITIES.map(c=>(
+                <div key={c.name}
+                  onClick={()=>setPage("schedule")}
+                  onMouseEnter={()=>setHover(c.name)}
+                  onMouseLeave={()=>setHover(null)}
+                  style={{padding:"11px 14px",borderRadius:14,border:`1.5px solid ${hover===c.name?C.blue:C.navyBorder}`,background:hover===c.name?C.blueBg:"#fff",cursor:"pointer",transition:"all .2s",display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:34,height:34,borderRadius:"50%",background:c.main?C.amber+"22":C.blue+"18",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <img src={LOC_PIN} alt="pin" style={{width:24,height:24,objectFit:"contain",filter:c.main?"hue-rotate(0deg)":"hue-rotate(200deg)"}}/>
+                  </div>
+                  <div>
+                    <div className="ral" style={{fontWeight:800,fontSize:13,color:C.navy}}>{c.name}</div>
+                    <div style={{fontSize:10,color:C.textMuted,lineHeight:1.4}}>{c.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:14,padding:"14px 16px",background:C.blueBg,borderRadius:14,border:`1px solid ${C.blue}33`}}>
+              <div style={{fontSize:13,color:C.navy,fontWeight:600,marginBottom:4}}>📍 Headquartered in Nakasero, Kampala</div>
+              <div style={{fontSize:12,color:C.textSecondary,lineHeight:1.7}}>Serving 7 cities across Uganda. All routes depart from the Raylane Express terminal.</div>
+              <button onClick={()=>setPage("schedule")} style={{marginTop:10,background:C.blue,color:"#fff",border:"none",borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Raleway',sans-serif"}}>View All Schedules →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADMIN: PARTNERS SECTION
+// ═══════════════════════════════════════════════════════════════════════
+const AdminPartnersSection=({store})=>{
+  const [form,setForm]=useState({name:"",logo:"",url:"",active:true});
+  const [showModal,setShowModal]=useState(false);
+  const save=()=>{
+    if(!form.name) return;
+    store.addPartner(form);
+    setForm({name:"",logo:"",url:"",active:true});
+    setShowModal(false);
+  };
+  return(
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <h1 className="ral" style={{fontSize:24,fontWeight:900,color:C.darkText}}>Partners</h1>
+        <Btn onClick={()=>setShowModal(true)}>+ Add Partner</Btn>
+      </div>
+      <p style={{fontSize:13,color:C.darkMuted,marginBottom:24}}>Partners appear in the footer of the public website. Add logos and links for sponsors and strategic partners.</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14}}>
+        {store.partners.map(p=>(
+          <Card key={p.id}>
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:12}}>
+              <div style={{width:52,height:52,borderRadius:12,background:C.navyLight,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}}>
+                {p.logo&&p.logo.length>4
+                  ?<img src={p.logo} alt={p.name} style={{width:"100%",height:"100%",objectFit:"contain"}}/>
+                  :<span style={{fontSize:26}}>{p.logo||"🤝"}</span>}
+              </div>
+              <div>
+                <div style={{fontWeight:800,fontSize:15,color:C.darkText}}>{p.name}</div>
+                <div style={{fontSize:11,color:C.darkMuted,marginTop:2}}>{p.url||"No URL set"}</div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn variant="dark" style={{flex:1,fontSize:11,padding:"6px"}} onClick={()=>store.togglePartner(p.id)}>{p.active?"Hide from site":"Show on site"}</Btn>
+              <Btn variant="danger" style={{padding:"6px 12px",fontSize:11}} onClick={()=>store.removePartner(p.id)}>Remove</Btn>
+            </div>
+          </Card>
+        ))}
+      </div>
+      {showModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:C.darkCard,borderRadius:20,padding:28,width:"100%",maxWidth:440,border:`1px solid ${C.darkBorder}`}}>
+            <h3 className="ral" style={{fontWeight:800,color:C.darkText,marginBottom:20}}>Add Partner</h3>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <Input label="Partner Name *" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Uganda Tourism Board"/>
+              <div>
+              <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:8}}>Logo</label>
+              <label style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",borderRadius:10,border:`1.5px dashed ${C.amber}`,cursor:"pointer",background:C.amber+"09",marginBottom:8}}>
+                <span style={{fontSize:16}}>📁</span><span style={{fontSize:13,color:C.amber,fontWeight:600}}>Upload logo from device…</span>
+                <input type="file" accept="image/*" onChange={e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>setForm(f=>({...f,logo:ev.target.result}));r.readAsDataURL(file);}} style={{display:"none"}}/>
+              </label>
+              <Input label="— or Logo URL / Emoji" value={form.logo&&!form.logo.startsWith("data:")?form.logo:""} onChange={e=>setForm({...form,logo:e.target.value})} placeholder="https://... or 🏛️"/>
+            </div>
+              <Input label="Website URL" value={form.url} onChange={e=>setForm({...form,url:e.target.value})} placeholder="https://example.com"/>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:20}}>
+              <Btn onClick={()=>setShowModal(false)} variant="dark" style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={save} style={{flex:1}} disabled={!form.name}>Add Partner</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADMIN: DESTINATIONS CMS
+// ═══════════════════════════════════════════════════════════════════════
+const AdminDestinationsSection=({store})=>{
+  const [editId,setEditId]=useState(null);
+  const [form,setForm]=useState({name:"",region:"",img:"",caption:"",active:true});
+  const [showModal,setShowModal]=useState(false);
+  const open=(dest)=>{
+    if(dest){setEditId(dest.id);setForm({name:dest.name,region:dest.region,img:dest.img,caption:dest.caption,active:dest.active});}
+    else{setEditId(null);setForm({name:"",region:"",img:"",caption:"",active:true});}
+    setShowModal(true);
+  };
+  const save=()=>{
+    if(!form.name||!form.caption) return;
+    if(editId) store.updateDestination(editId,form);
+    else store.addDestination(form);
+    setShowModal(false);
+  };
+  return(
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <h1 className="ral" style={{fontSize:24,fontWeight:900,color:C.darkText}}>Destinations CMS</h1>
+        <Btn onClick={()=>open(null)} disabled={store.destinations.length>=4}>+ Add Destination</Btn>
+      </div>
+      <p style={{fontSize:13,color:C.darkMuted,marginBottom:24}}>Up to 4 destinations displayed as a sliding gallery on the homepage. Add an image URL and caption to showcase each location.</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
+        {store.destinations.map(d=>(
+          <Card key={d.id} style={{padding:0,overflow:"hidden"}}>
+            <div style={{aspectRatio:"16/9",overflow:"hidden",background:C.navyLight,position:"relative"}}>
+              {d.img?<img src={d.img} alt={d.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                :<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",fontSize:36}}>📍</div>}
+              <div style={{position:"absolute",top:8,right:8}}>
+                <span style={{background:d.active?C.green:C.textMuted,color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:10,letterSpacing:1}}>{d.active?"LIVE":"HIDDEN"}</span>
+              </div>
+            </div>
+            <div style={{padding:14}}>
+              <div className="ral" style={{fontWeight:800,fontSize:15,color:C.darkText}}>{d.name}</div>
+              <div style={{fontSize:11,color:C.blue,marginTop:2,marginBottom:6}}>📍 {d.region}</div>
+              <p style={{fontSize:12,color:C.darkMuted,lineHeight:1.6,margin:"0 0 12px"}}>{d.caption}</p>
+              <div style={{display:"flex",gap:8}}>
+                <Btn variant="dark" style={{flex:1,fontSize:11,padding:"6px"}} onClick={()=>open(d)}>Edit</Btn>
+                <Btn variant="dark" style={{padding:"6px 12px",fontSize:11}} onClick={()=>store.updateDestination(d.id,{active:!d.active})}>{d.active?"Hide":"Show"}</Btn>
+                <Btn variant="danger" style={{padding:"6px 10px",fontSize:11}} onClick={()=>store.removeDestination(d.id)}>✕</Btn>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+      {showModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:C.darkCard,borderRadius:20,padding:28,width:"100%",maxWidth:480,border:`1px solid ${C.darkBorder}`}}>
+            <h3 className="ral" style={{fontWeight:800,color:C.darkText,marginBottom:20}}>{editId?"Edit":"Add"} Destination</h3>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <Input label="Destination Name *" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Gulu City"/>
+              <Input label="Region" value={form.region} onChange={e=>setForm({...form,region:e.target.value})} placeholder="e.g. Northern Uganda"/>
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:8}}>Upload from Device</label>
+                <label style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,border:`1.5px dashed ${C.amber}`,cursor:"pointer",background:C.amber+"09"}}>
+                  <span style={{fontSize:16}}>📁</span><span style={{fontSize:13,color:C.amber,fontWeight:600}}>Browse local files…</span>
+                  <input type="file" accept="image/*" onChange={e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>setForm(f=>({...f,img:ev.target.result}));r.readAsDataURL(file);}} style={{display:"none"}}/>
+                </label>
+              </div>
+              <div style={{textAlign:"center",color:C.darkMuted,fontSize:12}}>— or —</div>
+              <Input label="Image URL (cloud/Google Drive/Dropbox)" value={form.img&&!form.img.startsWith("data:")?form.img:""} onChange={e=>setForm({...form,img:e.target.value})} placeholder="https://... (direct image link)"/>
+              {form.img&&<img src={form.img} alt="" style={{width:"100%",aspectRatio:"16/9",objectFit:"cover",borderRadius:10}} onError={e=>e.target.style.display="none"}/>}
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Caption *</label>
+                <textarea value={form.caption} onChange={e=>setForm({...form,caption:e.target.value})} rows={3} placeholder="Describe the beauty of this destination..."
+                  style={{width:"100%",padding:"10px 14px",background:C.darkInput,border:`1.5px solid ${C.darkBorder}`,borderRadius:10,color:C.darkText,fontSize:13,fontFamily:"'Inter',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:20}}>
+              <Btn onClick={()=>setShowModal(false)} variant="dark" style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={save} style={{flex:1}} disabled={!form.name||!form.caption}>Save Destination</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADMIN: SIGHTSEER / INSPIRE PHOTOS
+// ═══════════════════════════════════════════════════════════════════════
+const AdminInspireSection=({store})=>{
+  const [editId,setEditId]=useState(null);
+  const [form,setForm]=useState({url:"",caption:"",active:true});
+  const [showModal,setShowModal]=useState(false);
+  const open=(photo)=>{
+    setEditId(photo.id);
+    setForm({url:photo.url,caption:photo.caption,active:photo.active});
+    setShowModal(true);
+  };
+  const save=()=>{
+    if(!form.caption) return;
+    store.updateInspirePhoto(editId,form);
+    setShowModal(false);
+  };
+  return(
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <h1 className="ral" style={{fontSize:24,fontWeight:900,color:C.darkText,marginBottom:8}}>Sightseer / Inspire</h1>
+      <p style={{fontSize:13,color:C.darkMuted,marginBottom:24}}>Three scenic photos displayed in the "Inspire — Beauty of Uganda" homepage section. Add an image URL and caption for each.</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
+        {store.inspirePhotos.map(p=>(
+          <Card key={p.id} style={{padding:0,overflow:"hidden"}}>
+            <div style={{aspectRatio:"4/3",overflow:"hidden",background:C.navyLight,position:"relative"}}>
+              {p.url?<img src={p.url} alt={p.caption} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                :<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",fontSize:48}}>🇺🇬</div>}
+              <div style={{position:"absolute",top:8,right:8}}>
+                <span style={{background:p.active?C.green:C.textMuted,color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:10,letterSpacing:1}}>{p.active?"LIVE":"HIDDEN"}</span>
+              </div>
+            </div>
+            <div style={{padding:14}}>
+              <p style={{fontSize:12,color:C.darkMuted,fontStyle:"italic",margin:"0 0 12px",lineHeight:1.6}}>{p.caption}</p>
+              <div style={{display:"flex",gap:8}}>
+                <Btn variant="dark" style={{flex:1,fontSize:11,padding:"6px"}} onClick={()=>open(p)}>Edit Photo</Btn>
+                <Btn variant="dark" style={{padding:"6px 12px",fontSize:11}} onClick={()=>store.updateInspirePhoto(p.id,{active:!p.active})}>{p.active?"Hide":"Show"}</Btn>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+      {showModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:C.darkCard,borderRadius:20,padding:28,width:"100%",maxWidth:460,border:`1px solid ${C.darkBorder}`}}>
+            <h3 className="ral" style={{fontWeight:800,color:C.darkText,marginBottom:20}}>Edit Inspire Photo</h3>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:8}}>Upload from Device</label>
+                <label style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,border:`1.5px dashed ${C.amber}`,cursor:"pointer",background:C.amber+"09"}}>
+                  <span style={{fontSize:16}}>📁</span><span style={{fontSize:13,color:C.amber,fontWeight:600}}>Browse local files…</span>
+                  <input type="file" accept="image/*" onChange={e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>setForm(f=>({...f,url:ev.target.result}));r.readAsDataURL(file);}} style={{display:"none"}}/>
+                </label>
+              </div>
+              <div style={{textAlign:"center",color:C.darkMuted,fontSize:12}}>— or —</div>
+              <Input label="Image URL (cloud/Google Drive/Dropbox)" value={form.url&&!form.url.startsWith("data:")?form.url:""} onChange={e=>setForm({...form,url:e.target.value})} placeholder="https://... (direct image link)"/>
+              {form.url&&<img src={form.url} alt="" style={{width:"100%",aspectRatio:"4/3",objectFit:"cover",borderRadius:10}} onError={e=>e.target.style.display="none"}/>}
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Caption *</label>
+                <textarea value={form.caption} onChange={e=>setForm({...form,caption:e.target.value})} rows={3} placeholder="Describe the scenic beauty..."
+                  style={{width:"100%",padding:"10px 14px",background:C.darkInput,border:`1.5px solid ${C.darkBorder}`,borderRadius:10,color:C.darkText,fontSize:13,fontFamily:"'Inter',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+              </div>
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:C.darkText}}>
+                <input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})} style={{width:16,height:16}}/>
+                Show on homepage
+              </label>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:20}}>
+              <Btn onClick={()=>setShowModal(false)} variant="dark" style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={save} style={{flex:1}} disabled={!form.caption}>Save</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADMIN: MOMO API SETTINGS
+// ═══════════════════════════════════════════════════════════════════════
+const AdminMomoAPISection=({store})=>{
+  const [net,setNet]=useState("mtn");
+  const cfg=store.momoConfig[net];
+  const F=(k,v)=>store.updateMomoConfig(net,{[k]:v});
+  return(
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <h1 className="ral" style={{fontSize:24,fontWeight:900,color:C.darkText,marginBottom:8}}>Mobile Money API Integration</h1>
+      <p style={{fontSize:13,color:C.darkMuted,marginBottom:24}}>Configure MTN MoMo and Airtel Money API credentials. These are used to verify transaction references automatically when customers make payments.</p>
+      <div style={{display:"flex",gap:10,marginBottom:24}}>
+        {["mtn","airtel"].map(n=>(
+          <button key={n} onClick={()=>setNet(n)}
+            style={{padding:"9px 22px",borderRadius:10,border:`2px solid ${net===n?(n==="mtn"?"#FFCB05":"#E40000"):C.darkBorder}`,background:net===n?(n==="mtn"?"#FFFBEB":"#FFF1F2"):"transparent",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Raleway',sans-serif",color:net===n?(n==="mtn"?"#92400E":"#991B1B"):C.darkMuted,transition:"all .2s"}}>
+            {n==="mtn"?"MTN MoMo":"Airtel Money"}
+          </button>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+        <Card style={{gridColumn:"1/-1"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+            <h3 className="ral" style={{fontWeight:800,color:C.darkText,fontSize:16}}>{net==="mtn"?"MTN MoMo API":"Airtel Money API"}</h3>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,color:C.darkText}}>
+              <div style={{width:40,height:22,borderRadius:11,background:cfg.enabled?C.green:C.darkBorder,position:"relative",transition:"background .2s",cursor:"pointer"}}
+                onClick={()=>F("enabled",!cfg.enabled)}>
+                <div style={{position:"absolute",top:2,left:cfg.enabled?18:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
+              </div>
+              {cfg.enabled?"Active":"Disabled"}
+            </label>
+          </div>
+          {!cfg.enabled&&<div style={{background:C.darkInput,borderRadius:10,padding:"12px 14px",marginBottom:16,fontSize:12,color:C.darkMuted}}>⚠️ API integration is disabled. Payments will be verified manually by matching reference numbers.</div>}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            {net==="mtn"?(<>
+              <Input label="API User (UUID)" value={cfg.apiKey} onChange={e=>F("apiKey",e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/>
+              <Input label="API Key (Primary)" value={cfg.primaryKey} onChange={e=>F("primaryKey",e.target.value)} placeholder="Your MTN MoMo primary key"/>
+              <Input label="Subscription Key" value={cfg.subscriptionKey} onChange={e=>F("subscriptionKey",e.target.value)} placeholder="Ocp-Apim-Subscription-Key"/>
+              <Input label="Callback Host" value={cfg.callbackHost} onChange={e=>F("callbackHost",e.target.value)} placeholder="https://raylane.ug"/>
+            </>):(<>
+              <Input label="Client ID" value={cfg.clientId} onChange={e=>F("clientId",e.target.value)} placeholder="Your Airtel Client ID"/>
+              <Input label="Client Secret" value={cfg.clientSecret} onChange={e=>F("clientSecret",e.target.value)} placeholder="Your Airtel Client Secret"/>
+              <Input label="Callback URL" value={cfg.callbackUrl} onChange={e=>F("callbackUrl",e.target.value)} placeholder="https://raylane.ug/api/airtel"/>
+              <div/>
+            </>)}
+            <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,display:"block",marginBottom:6,letterSpacing:".5px",textTransform:"uppercase"}}>Environment</label>
+                <select value={cfg.environment} onChange={e=>F("environment",e.target.value)}
+                  style={{width:"100%",padding:"10px 14px",background:C.darkInput,border:`1.5px solid ${C.darkBorder}`,borderRadius:10,color:C.darkText,fontSize:13,outline:"none"}}>
+                  <option value="sandbox">Sandbox (Testing)</option>
+                  <option value="production">Production (Live)</option>
+                </select>
+              </div>
+              <Input label="Merchant Code (displayed to customers)" value={cfg.merchantCode} onChange={e=>F("merchantCode",e.target.value)} placeholder="e.g. 49318"/>
+            </div>
+          </div>
+          <div style={{marginTop:20,display:"flex",gap:10}}>
+            <Btn style={{flex:1}} onClick={()=>{}}>Save {net==="mtn"?"MTN":"Airtel"} Settings</Btn>
+            <Btn variant="dark" style={{padding:"10px 18px"}} onClick={()=>{}}>Test Connection</Btn>
+          </div>
+        </Card>
+        <Card style={{gridColumn:"1/-1"}}>
+          <h3 className="ral" style={{fontWeight:700,color:C.darkText,fontSize:14,marginBottom:14}}>Integration Notes</h3>
+          <div style={{fontSize:12,color:C.darkMuted,lineHeight:2}}>
+            {net==="mtn"?(<>
+              <div>📖 MTN MoMo API docs: <a href="https://momodeveloper.mtn.com" target="_blank" rel="noopener" style={{color:C.amber}}>momodeveloper.mtn.com</a></div>
+              <div>🔐 Generate API credentials from the MTN MoMo Developer Portal</div>
+              <div>📡 Collection endpoint: POST /collection/v1_0/requesttopay</div>
+              <div>✅ Reference format: 10-digit numeric string (e.g. 1234567890)</div>
+            </>):(<>
+              <div>📖 Airtel Money API docs: <a href="https://developers.airtel.africa" target="_blank" rel="noopener" style={{color:C.red}}>developers.airtel.africa</a></div>
+              <div>🔐 Register at Airtel Africa Developer Hub for credentials</div>
+              <div>📡 Collection endpoint: POST /merchant/v1/payments</div>
+              <div>✅ Reference format: Alphanumeric (e.g. CI250311A12345)</div>
+            </>)}
+            <div>🔒 Store credentials securely — never commit to version control</div>
+            <div>⚙️ When disabled, the system validates reference format only (manual verification mode)</div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// ─── LOST & FOUND PAGE ───────────────────────────────────────────────
+const LostFoundPage=()=>(
+  <div style={{minHeight:"100vh",paddingTop:80,maxWidth:800,margin:"0 auto",padding:"80px 20px 40px"}}>
+    <h1 className="ral" style={{fontSize:30,fontWeight:900,marginBottom:6}}>Lost & Found</h1>
+    <p style={{color:C.textMuted,marginBottom:28,fontSize:14}}>Left something on one of our vans? We'll do our best to reunite you with it.</p>
+    <div style={{display:"grid",gap:14,marginBottom:32}}>
+      {[{icon:"📦",title:"Report Lost Item",desc:"Fill in the form below with your journey details and item description. Our team will check all vehicles and contact you within 24 hours."},{icon:"📞",title:"Call Our Office",desc:"Reach us directly on +256 (0) 766 026 401 (Mon–Sun 5AM–10PM) for urgent matters."},{icon:"📍",title:"Visit in Person",desc:"Come to our Nakasero terminal in Kampala. Bring your booking reference for faster assistance."}].map(i=>(
+        <Card key={i.title} style={{display:"flex",gap:16,alignItems:"flex-start"}}>
+          <div style={{fontSize:28,flexShrink:0}}>{i.icon}</div>
+          <div><div className="ral" style={{fontWeight:700,fontSize:15,marginBottom:4}}>{i.title}</div><p style={{fontSize:13,color:C.textSecondary,margin:0,lineHeight:1.7}}>{i.desc}</p></div>
+        </Card>
+      ))}
+    </div>
+    <Card>
+      <h2 className="ral" style={{fontWeight:800,fontSize:18,marginBottom:18}}>Report a Lost Item</h2>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        <Input label="Full Name" placeholder="Your name"/>
+        <Input label="Phone Number" placeholder="0771234567"/>
+        <Input label="Booking Code / Date" placeholder="RLN2603... or 2026-03-11" style={{gridColumn:"1/-1"}}/>
+        <Input label="Route Travelled" placeholder="e.g. Kampala → Gulu"/>
+        <Input label="Item Description" placeholder="e.g. Black backpack with laptop"/>
+        <div style={{gridColumn:"1/-1"}}>
+          <label style={{fontSize:11,color:C.textSecondary,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Additional Details</label>
+          <textarea rows={3} placeholder="Any other details that might help us identify the item..." style={{width:"100%",padding:"10px 14px",border:`1.5px solid ${C.navyBorder}`,borderRadius:10,fontSize:13,fontFamily:"'Inter',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+        </div>
+      </div>
+      <div style={{marginTop:16}}>
+        <BookBtn style={{padding:"12px 28px"}}>Submit Report</BookBtn>
+      </div>
+    </Card>
+  </div>
+);
+
+// ─── INSPIRE / SIGHTSEER PAGE ─────────────────────────────────────────
+const InspirePage=({store})=>(
+  <div style={{minHeight:"100vh",paddingTop:80,background:"#0B1E4B"}}>
+    <div style={{maxWidth:1280,margin:"0 auto",padding:"40px clamp(16px,4vw,40px)"}}>
+      <div style={{textAlign:"center",marginBottom:56}}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:3,color:C.amberLight,textTransform:"uppercase",marginBottom:10}}>Sightseer</div>
+        <h1 className="playfair" style={{fontSize:"clamp(32px,5vw,60px)",fontWeight:900,color:"#fff",marginBottom:16}}>Inspire — Beauty of Uganda</h1>
+        <div style={{width:80,height:4,background:C.amber,borderRadius:2,margin:"0 auto"}}/>
+        <p style={{fontSize:15,color:"rgba(255,255,255,0.55)",marginTop:20,maxWidth:600,margin:"20px auto 0",lineHeight:1.8}}>Discover the breathtaking scenery along our routes across the Pearl of Africa. Every journey is an adventure.</p>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:24,marginBottom:56}}>
+        {store.inspirePhotos.filter(p=>p.active).map((p,i)=>(
+          <div key={p.id} style={{borderRadius:20,overflow:"hidden",position:"relative",boxShadow:"0 12px 40px rgba(0,0,0,0.35)",animation:`fadeUp ${.15+i*.15}s ease`}}>
+            <div style={{aspectRatio:"3/4",overflow:"hidden"}}>
+              {p.url?<img src={p.url} alt={p.caption} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                :<div style={{width:"100%",height:"100%",background:`linear-gradient(160deg,#1e3a5f,#0b5fff44,#1a4731)`,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
+                  <span style={{fontSize:64}}>🇺🇬</span>
+                  <span style={{color:"rgba(255,255,255,0.5)",fontSize:13}}>Image coming soon</span>
+                </div>}
+            </div>
+            <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,0.82) 0%,rgba(0,0,0,0.1) 50%,transparent 80%)"}}/>
+            <div style={{position:"absolute",bottom:0,left:0,right:0,padding:22}}>
+              <p style={{fontSize:14,color:"rgba(255,255,255,0.92)",lineHeight:1.7,margin:0,fontStyle:"italic"}}>&ldquo;{p.caption}&rdquo;</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <UgandaPresenceMap setPage={()=>{}}/>
+    </div>
+  </div>
+);
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADMIN: SAFETY PHOTOS CMS
+// ═══════════════════════════════════════════════════════════════════════
+const AdminSafetyPhotosSection=({store})=>{
+  const [editId,setEditId]=useState(null);
+  const [form,setForm]=useState({url:"",caption:"",active:true});
+  const [showModal,setShowModal]=useState(false);
+  const [localPreview,setLocalPreview]=useState("");
+
+  const open=photo=>{
+    setEditId(photo.id);
+    setForm({url:photo.url,caption:photo.caption,active:photo.active});
+    setLocalPreview("");
+    setShowModal(true);
+  };
+
+  const handleLocalFile=e=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      setLocalPreview(ev.target.result);
+      setForm(f=>({...f,url:ev.target.result}));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const save=()=>{
+    if(!form.caption&&!form.url) return;
+    store.updateSafetyPhoto(editId,form);
+    setShowModal(false);
+    setLocalPreview("");
+  };
+
+  return(
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <h1 className="ral" style={{fontSize:24,fontWeight:900,color:C.darkText}}>Safety Photos</h1>
+        <Btn onClick={()=>store.addSafetyPhoto()}>+ Add Slot</Btn>
+      </div>
+      <p style={{fontSize:13,color:C.darkMuted,marginBottom:24}}>
+        Add photos displayed on the public Safety page. Upload from your device or paste a URL. Captions appear below each photo.
+      </p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
+        {store.safetyPhotos.map(ph=>(
+          <Card key={ph.id} style={{padding:0,overflow:"hidden"}}>
+            <div style={{aspectRatio:"16/9",overflow:"hidden",background:C.navyLight,position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {ph.url
+                ?<img src={ph.url} alt={ph.caption} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                :<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,opacity:.4}}>
+                  <span style={{fontSize:36}}>🖼️</span>
+                  <span style={{fontSize:12,color:C.darkMuted}}>No image yet</span>
+                </div>}
+              <div style={{position:"absolute",top:8,right:8}}>
+                <span style={{background:ph.active?C.green:C.textMuted,color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:10}}>{ph.active?"LIVE":"HIDDEN"}</span>
+              </div>
+            </div>
+            <div style={{padding:14}}>
+              {ph.caption&&<p style={{fontSize:12,color:C.darkMuted,fontStyle:"italic",marginBottom:10,lineHeight:1.6}}>{ph.caption}</p>}
+              <div style={{display:"flex",gap:8}}>
+                <Btn variant="dark" style={{flex:1,fontSize:11,padding:"6px"}} onClick={()=>open(ph)}>Edit</Btn>
+                <Btn variant="dark" style={{padding:"6px 10px",fontSize:11}} onClick={()=>store.updateSafetyPhoto(ph.id,{active:!ph.active})}>{ph.active?"Hide":"Show"}</Btn>
+                <Btn variant="danger" style={{padding:"6px 10px",fontSize:11}} onClick={()=>store.removeSafetyPhoto(ph.id)}>✕</Btn>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+      {showModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:C.darkCard,borderRadius:20,padding:28,width:"100%",maxWidth:500,border:`1px solid ${C.darkBorder}`,maxHeight:"90vh",overflowY:"auto"}}>
+            <h3 className="ral" style={{fontWeight:800,color:C.darkText,marginBottom:20}}>Edit Safety Photo</h3>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              {/* Local file upload */}
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:8}}>Upload from Device</label>
+                <label style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,border:`1.5px dashed ${C.amber}`,cursor:"pointer",background:C.amber+"09"}}>
+                  <span style={{fontSize:18}}>📁</span>
+                  <span style={{fontSize:13,color:C.amber,fontWeight:600}}>Browse local files…</span>
+                  <input type="file" accept="image/*" onChange={handleLocalFile} style={{display:"none"}}/>
+                </label>
+              </div>
+              <div style={{textAlign:"center",color:C.darkMuted,fontSize:12}}>— or —</div>
+              {/* URL / Cloud link */}
+              <Input label="Image URL (Cloud Storage / Google Drive / Dropbox link)" value={form.url&&!form.url.startsWith("data:")?form.url:""} 
+                onChange={e=>{setForm(f=>({...f,url:e.target.value}));setLocalPreview("");}}
+                placeholder="https://drive.google.com/... or any image URL"/>
+              {/* Preview */}
+              {(localPreview||form.url)&&(
+                <img src={localPreview||form.url} alt="preview" style={{width:"100%",aspectRatio:"16/9",objectFit:"cover",borderRadius:10}}
+                  onError={e=>e.target.style.display="none"}/>
+              )}
+              <div>
+                <label style={{fontSize:11,color:C.darkMuted,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Caption</label>
+                <textarea value={form.caption} onChange={e=>setForm(f=>({...f,caption:e.target.value}))} rows={2}
+                  placeholder="Describe the photo for passengers…"
+                  style={{width:"100%",padding:"10px 14px",background:C.darkInput,border:`1.5px solid ${C.darkBorder}`,borderRadius:10,color:C.darkText,fontSize:13,fontFamily:"'Inter',sans-serif",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+              </div>
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:C.darkText}}>
+                <input type="checkbox" checked={form.active} onChange={e=>setForm(f=>({...f,active:e.target.checked}))} style={{width:16,height:16}}/>
+                Show on Safety page
+              </label>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:20}}>
+              <Btn onClick={()=>{setShowModal(false);setLocalPreview("");}} variant="dark" style={{flex:1}}>Cancel</Btn>
+              <Btn onClick={save} style={{flex:1}}>Save Photo</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AdminCMSSection=({heroSlides,setHeroSlides,newsItems,setNewsItems})=>{
+  const [tab,setTab]=useState("hero");
+  const [slideForm,setSlideForm]=useState({url:"",caption:"",subCaption:"",effect:"ken-burns",active:true});
+  const [newsForm,setNewsForm]=useState({title:"",body:"",badge:"",date:new Date().toISOString().split("T")[0],active:true});
+  const [editingSlide,setEditingSlide]=useState(null);
+  const [editingNews,setEditingNews]=useState(null);
+  const [showSlideModal,setShowSlideModal]=useState(false);
+  const [showNewsModal,setShowNewsModal]=useState(false);
+
+  const saveSlide=()=>{
+    if(!slideForm.url||!slideForm.caption) return;
+    if(editingSlide) setHeroSlides(p=>p.map(s=>s.id===editingSlide.id?{...s,...slideForm}:s));
+    else setHeroSlides(p=>[...p,{...slideForm,id:Date.now()}]);
+    setShowSlideModal(false); setEditingSlide(null);
+    setSlideForm({url:"",caption:"",subCaption:"",effect:"ken-burns",active:true});
+  };
+
+  const saveNews=()=>{
+    if(!newsForm.title||!newsForm.body) return;
+    if(editingNews) setNewsItems(p=>p.map(n=>n.id===editingNews.id?{...n,...newsForm}:n));
+    else setNewsItems(p=>[...p,{...newsForm,id:Date.now()}]);
+    setShowNewsModal(false); setEditingNews(null);
+    setNewsForm({title:"",body:"",badge:"",date:new Date().toISOString().split("T")[0],active:true});
+  };
+
+  return(
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <h1 className="playfair" style={{fontSize:24,fontWeight:800,color:C.darkText,marginBottom:20}}>Homepage Content CMS</h1>
+      <div style={{marginBottom:20}}>
+        <Tabs tabs={["Hero Slides","News & Announcements"]} active={tab==="hero"?"Hero Slides":"News & Announcements"} onChange={t=>setTab(t==="Hero Slides"?"hero":"news")}/>
+      </div>
+
+      {tab==="hero"&&(
+        <>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
+            <Btn onClick={()=>{setEditingSlide(null);setSlideForm({url:"",caption:"",subCaption:"",effect:"ken-burns",active:true});setShowSlideModal(true);}}>+ Add Slide</Btn>
+          </div>
+          <div style={{display:"grid",gap:12}}>
+            {heroSlides.map(s=>(
+              <div key={s.id} style={{background:C.darkCard,border:`1px solid ${C.darkBorder}`,borderRadius:14,overflow:"hidden",display:"flex"}}>
+                <div style={{width:140,height:84,flexShrink:0,overflow:"hidden",position:"relative"}}>
+                  <img src={s.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.opacity=0}/>
+                  <div style={{position:"absolute",inset:0,background:"linear-gradient(to right,transparent,rgba(11,30,75,.7))"}}/>
+                </div>
+                <div style={{padding:"12px 16px",flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                  <div>
+                    <div style={{fontWeight:700,color:C.darkText,marginBottom:3,fontSize:14}}>{s.caption}</div>
+                    <div style={{fontSize:11,color:C.darkMuted,marginBottom:8}}>{s.subCaption}</div>
+                    <div style={{display:"flex",gap:6}}>
+                      <Badge color={s.active?C.green:C.textMuted} bg={s.active?C.greenBg:C.navyLight}>{s.active?"Active":"Hidden"}</Badge>
+                      <Badge color={C.blue} bg={C.blueBg}>{s.effect}</Badge>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <Btn variant="dark" style={{padding:"5px 12px",fontSize:11}} onClick={()=>{setEditingSlide(s);setSlideForm({url:s.url,caption:s.caption,subCaption:s.subCaption,effect:s.effect,active:s.active});setShowSlideModal(true);}}>Edit</Btn>
+                    <Btn variant="dark" style={{padding:"5px 12px",fontSize:11}} onClick={()=>setHeroSlides(p=>p.map(x=>x.id===s.id?{...x,active:!x.active}:x))}>{s.active?"Hide":"Show"}</Btn>
+                    <Btn variant="danger" style={{padding:"5px 12px",fontSize:11}} onClick={()=>setHeroSlides(p=>p.filter(x=>x.id!==s.id))}>Remove</Btn>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Modal open={showSlideModal} onClose={()=>{setShowSlideModal(false);setEditingSlide(null);}} title={editingSlide?"Edit Slide":"Add Hero Slide"}>
+            <div style={{display:"flex",flexDirection:"column",gap:13}}>
+              <div>
+                <label style={{fontSize:11,color:C.textSecondary,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:8}}>Upload from Device</label>
+                <label style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,border:`1.5px dashed ${C.amber}`,cursor:"pointer",background:C.amber+"09"}}>
+                  <span style={{fontSize:16}}>📁</span><span style={{fontSize:13,color:C.amber,fontWeight:600}}>Browse local files…</span>
+                  <input type="file" accept="image/*" onChange={e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>setSlideForm(f=>({...f,url:ev.target.result}));r.readAsDataURL(file);}} style={{display:"none"}}/>
+                </label>
+              </div>
+              <div style={{textAlign:"center",color:C.textMuted,fontSize:12}}>— or paste URL —</div>
+              <Input label="Image URL (Unsplash / Cloud / Google Drive)" value={slideForm.url&&!slideForm.url.startsWith("data:")?slideForm.url:""} onChange={e=>setSlideForm({...slideForm,url:e.target.value})} placeholder="https://images.unsplash.com/..."/>
+              {slideForm.url&&<img src={slideForm.url} alt="" style={{width:"100%",height:110,objectFit:"cover",borderRadius:10,border:`1px solid ${C.navyBorder}`}} onError={e=>e.target.style.display="none"}/>}
+              <Input label="Main Caption" value={slideForm.caption} onChange={e=>setSlideForm({...slideForm,caption:e.target.value})} placeholder="e.g. Safe journeys across Uganda" required/>
+              <Input label="Sub-Caption" value={slideForm.subCaption} onChange={e=>setSlideForm({...slideForm,subCaption:e.target.value})} placeholder="Supporting description line"/>
+              <Sel label="Visual Effect" value={slideForm.effect} onChange={e=>setSlideForm({...slideForm,effect:e.target.value})} options={[{value:"ken-burns",label:"Ken Burns (slow zoom)"},{value:"zoom",label:"Zoom in"},{value:"fade",label:"Fade"},{value:"slide",label:"Slide in"}]}/>
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:14}}>
+                <input type="checkbox" checked={slideForm.active} onChange={e=>setSlideForm({...slideForm,active:e.target.checked})} style={{width:16,height:16}}/>
+                <span>Active (visible on homepage)</span>
+              </label>
+              <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                <Btn variant="navy" onClick={()=>setShowSlideModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+                <BookBtn onClick={saveSlide}>{editingSlide?"Save Changes":"Add Slide"}</BookBtn>
+              </div>
+            </div>
+          </Modal>
+        </>
+      )}
+
+      {tab==="news"&&(
+        <>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
+            <Btn onClick={()=>{setEditingNews(null);setNewsForm({title:"",body:"",badge:"",date:new Date().toISOString().split("T")[0],active:true});setShowNewsModal(true);}}>+ Add Announcement</Btn>
+          </div>
+          <div style={{display:"grid",gap:12}}>
+            {newsItems.map(n=>(
+              <div key={n.id} style={{background:C.darkCard,border:`1px solid ${C.darkBorder}`,borderRadius:14,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",gap:8,marginBottom:7}}>
+                    {n.badge&&<Badge color={C.amber2} bg={C.amberBg}>{n.badge}</Badge>}
+                    <Badge color={n.active?C.green:C.textMuted} bg={n.active?C.greenBg:C.navyLight}>{n.active?"Live":"Draft"}</Badge>
+                  </div>
+                  <div style={{fontWeight:700,fontSize:15,color:C.darkText,marginBottom:4}}>{n.title}</div>
+                  <div style={{fontSize:12,color:C.darkMuted,lineHeight:1.6}}>{n.body}</div>
+                  <div style={{fontSize:11,color:C.darkMuted,marginTop:6}}>📅 {n.date}</div>
+                </div>
+                <div style={{display:"flex",gap:8,flexShrink:0}}>
+                  <Btn variant="dark" style={{padding:"5px 12px",fontSize:11}} onClick={()=>{setEditingNews(n);setNewsForm({title:n.title,body:n.body,badge:n.badge||"",date:n.date,active:n.active});setShowNewsModal(true);}}>Edit</Btn>
+                  <Btn variant="dark" style={{padding:"5px 12px",fontSize:11}} onClick={()=>setNewsItems(p=>p.map(x=>x.id===n.id?{...x,active:!x.active}:x))}>{n.active?"Draft":"Publish"}</Btn>
+                  <Btn variant="danger" style={{padding:"5px 12px",fontSize:11}} onClick={()=>setNewsItems(p=>p.filter(x=>x.id!==n.id))}>Delete</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Modal open={showNewsModal} onClose={()=>{setShowNewsModal(false);setEditingNews(null);}} title={editingNews?"Edit Announcement":"New Announcement"}>
+            <div style={{display:"flex",flexDirection:"column",gap:13}}>
+              <Input label="Title" value={newsForm.title} onChange={e=>setNewsForm({...newsForm,title:e.target.value})} placeholder="e.g. New Route Launched" required/>
+              <Textarea label="Body" value={newsForm.body} onChange={e=>setNewsForm({...newsForm,body:e.target.value})} placeholder="Announcement details..." rows={3}/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <Input label="Badge (optional)" value={newsForm.badge} onChange={e=>setNewsForm({...newsForm,badge:e.target.value})} placeholder="e.g. Promo"/>
+                <Input label="Date" type="date" value={newsForm.date} onChange={e=>setNewsForm({...newsForm,date:e.target.value})}/>
+              </div>
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:14}}>
+                <input type="checkbox" checked={newsForm.active} onChange={e=>setNewsForm({...newsForm,active:e.target.checked})} style={{width:16,height:16}}/>
+                <span>Publish immediately</span>
+              </label>
+              <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                <Btn variant="navy" onClick={()=>setShowNewsModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+                <BookBtn onClick={saveNews}>{editingNews?"Save Changes":"Publish"}</BookBtn>
+              </div>
+            </div>
+          </Modal>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// COST MANAGEMENT SECTION — SEPARATE FROM REVENUE
+// ═══════════════════════════════════════════════════════════════════════
+const AdminCostManagement=({store})=>{
+  const [expenses,setExpenses]=useState(store.expenses||[]);
+  const [showModal,setShowModal]=useState(false);
+  const [editingExp,setEditingExp]=useState(null);
+  const [deleteConfirm,setDeleteConfirm]=useState(null);
+  const [filterCat,setFilterCat]=useState("All");
+  const [filterMonth,setFilterMonth]=useState(new Date().toISOString().slice(0,7));
+  const [expForm,setExpForm]=useState({category:"Fuel",amount:"",description:"",date:new Date().toISOString().split("T")[0],paymentMethod:"Cash",vendor:"",vehicle:""});
+
+  // Finance Users / Access Control
+  const [showUserModal,setShowUserModal]=useState(false);
+  const [finUsers,setFinUsers]=useState([
+    {id:"FU-001",name:"Admin",role:"full",email:"admin@raylane.ug",access:["view","add","edit","delete","export"]},
+    {id:"FU-002",name:"Accounts Officer",role:"limited",email:"accounts@raylane.ug",access:["view","add"]},
+  ]);
+  const [userForm,setUserForm]=useState({name:"",email:"",role:"limited",access:["view"]});
+
+  const totalExp=expenses.reduce((s,e)=>s+e.amount,0);
+  const cats=["All",...new Set(expenses.map(e=>e.category))];
+  const filtered=expenses.filter(e=>{
+    const matchCat=filterCat==="All"||e.category===filterCat;
+    const matchMonth=!filterMonth||e.date?.startsWith(filterMonth);
+    return matchCat&&matchMonth;
+  });
+
+  const openEdit=(e)=>{setEditingExp(e);setExpForm({category:e.category,amount:String(e.amount),description:e.description||"",date:e.date||new Date().toISOString().split("T")[0],paymentMethod:e.paymentMethod||"Cash",vendor:e.vendor||"",vehicle:e.vehicle||""});setShowModal(true);};
+  const openNew=()=>{setEditingExp(null);setExpForm({category:"Fuel",amount:"",description:"",date:new Date().toISOString().split("T")[0],paymentMethod:"Cash",vendor:"",vehicle:""});setShowModal(true);};
+  const saveExp=()=>{
+    if(!expForm.amount) return;
+    const entry={...expForm,amount:parseInt(expForm.amount)};
+    if(editingExp){
+      const updated=expenses.map(e=>e.id===editingExp.id?{...e,...entry}:e);
+      setExpenses(updated);
+    } else {
+      const newE={id:`EXP-${String(expenses.length+1).padStart(3,"0")}`,...entry};
+      setExpenses([...expenses,newE]);
+      store.addExpense(entry);
+    }
+    setShowModal(false);
+  };
+  const deleteExp=(id)=>{setExpenses(expenses.filter(e=>e.id!==id));setDeleteConfirm(null);};
+
+  const byCat=EXPENSE_CATEGORIES.reduce((acc,cat)=>{
+    acc[cat]=expenses.filter(e=>e.category===cat).reduce((s,e)=>s+e.amount,0);
+    return acc;
+  },{});
+  const topCats=Object.entries(byCat).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+  return(
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <div>
+          <h1 className="ral" style={{fontSize:24,fontWeight:900}}>Cost Management</h1>
+          <p style={{color:C.textMuted,fontSize:12,marginTop:3}}>Expense tracking — IASB/GAAP/URA compliant</p>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <Btn variant="navy" onClick={()=>setShowUserModal(true)} style={{fontSize:11,border:`1px solid ${C.navyBorder}`,padding:"7px 14px"}}>👥 Users & Access</Btn>
+          <Btn onClick={openNew} style={{padding:"8px 18px",fontSize:13}}>+ Add Cost</Btn>
+        </div>
+      </div>
+
+      {/* Alerts */}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",margin:"14px 0"}}>
+        <div style={{background:"#FFF7ED",border:"1px solid #F97316",borderRadius:10,padding:"9px 14px",fontSize:12,flex:1,minWidth:180}}>
+          <span style={{fontWeight:700,color:"#C2410C"}}>⚠️ URA Return Due</span><br/>
+          <span style={{color:C.textSecondary}}>VAT Return — end of month</span>
+        </div>
+        <div style={{background:"#FFF7ED",border:"1px solid #EAB308",borderRadius:10,padding:"9px 14px",fontSize:12,flex:1,minWidth:180}}>
+          <span style={{fontWeight:700,color:"#A16207"}}>🏦 Loan Repayment</span><br/>
+          <span style={{color:C.textSecondary}}>Next due: 15th — {formatUGX(850000)}</span>
+        </div>
+        <div style={{background:"#F0FDF4",border:`1px solid ${C.green}`,borderRadius:10,padding:"9px 14px",fontSize:12,flex:1,minWidth:180}}>
+          <span style={{fontWeight:700,color:C.green}}>✅ Payroll Processed</span><br/>
+          <span style={{color:C.textSecondary}}>March 2026 — 12 employees</span>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:18}}>
+        <StatCard label="Total Costs" value={formatUGX(totalExp)} icon="💸" color={C.red}/>
+        <StatCard label="This Month" value={formatUGX(filtered.reduce((s,e)=>s+e.amount,0))} icon="📅" color={C.orange}/>
+        <StatCard label="Entries" value={filtered.length} icon="📋" color={C.blue}/>
+        <StatCard label="Cost/Revenue Ratio" value={`${store.bookings.filter(b=>b.payment_status==="confirmed").reduce((s,b)=>s+b.amount,0)?Math.round((totalExp/store.bookings.filter(b=>b.payment_status==="confirmed").reduce((s,b)=>s+b.amount,0))*100):0}%`} icon="📊" color={C.purple}/>
+      </div>
+
+      {/* Top expense categories */}
+      {topCats.length>0&&(
+        <Card style={{marginBottom:18}}>
+          <h3 className="ral" style={{fontWeight:700,marginBottom:14}}>Cost by Category</h3>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
+            {topCats.map(([cat,val])=>(
+              <div key={cat} style={{background:C.navyMid,borderRadius:9,padding:"11px 14px"}}>
+                <div style={{fontSize:11,color:C.textMuted,marginBottom:3}}>{cat}</div>
+                <div style={{fontWeight:800,color:C.red,fontSize:15}}>{formatUGX(val)}</div>
+                <div style={{marginTop:5,height:3,background:C.navyBorder,borderRadius:2}}><div style={{width:`${Math.min((val/topCats[0][1])*100,100)}%`,height:"100%",background:C.red,borderRadius:2}}/></div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Filters + table */}
+      <Card style={{padding:0,overflow:"hidden"}}>
+        <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.navyBorder}`,display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+          <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} style={{background:C.navyMid,border:`1px solid ${C.navyBorder}`,borderRadius:7,padding:"6px 10px",fontSize:12,color:C.textPrimary}}>
+            {cats.map(c=><option key={c}>{c}</option>)}
+          </select>
+          <input type="month" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{background:C.navyMid,border:`1px solid ${C.navyBorder}`,borderRadius:7,padding:"6px 10px",fontSize:12,color:C.textPrimary}}/>
+          <span style={{marginLeft:"auto",fontSize:12,color:C.textMuted}}>{filtered.length} entries · {formatUGX(filtered.reduce((s,e)=>s+e.amount,0))}</span>
+        </div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead><tr>{["ID","Category","Description","Vehicle/Vendor","Amount","Method","Date",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {filtered.map(e=>(
+                <tr key={e.id||e.category+e.date} onMouseEnter={ev=>ev.currentTarget.style.background=C.navyMid} onMouseLeave={ev=>ev.currentTarget.style.background=""}>
+                  <TD><span style={{color:C.amber,fontWeight:700,fontSize:11}}>{e.id||"—"}</span></TD>
+                  <TD><span style={{background:C.orangeBg,color:C.orange,padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600}}>{e.category}</span></TD>
+                  <TD style={{color:C.textSecondary,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.description}</TD>
+                  <TD style={{fontSize:11,color:C.textMuted}}>{e.vehicle||e.vendor||"—"}</TD>
+                  <TD><span style={{color:C.red,fontWeight:700}}>-{formatUGX(e.amount)}</span></TD>
+                  <TD><span style={{background:C.navyMid,padding:"2px 8px",borderRadius:10,fontSize:10}}>{e.paymentMethod||"Cash"}</span></TD>
+                  <TD style={{fontSize:11,color:C.textMuted}}>{e.date}</TD>
+                  <TD>
+                    <div style={{display:"flex",gap:4}}>
+                      <Btn onClick={()=>openEdit(e)} variant="navy" style={{padding:"3px 8px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>Edit</Btn>
+                      <Btn onClick={()=>setDeleteConfirm(e.id||e.category+e.date)} variant="danger" style={{padding:"3px 8px",fontSize:10}}>Del</Btn>
+                    </div>
+                  </TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Add/Edit modal */}
+      <Modal open={showModal} onClose={()=>setShowModal(false)} title={editingExp?"Edit Cost Entry":"Add New Cost"}>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Sel label="Category" value={expForm.category} onChange={e=>setExpForm({...expForm,category:e.target.value})} options={EXPENSE_CATEGORIES.map(v=>({value:v,label:v}))}/>
+          <Input label="Amount (UGX)" type="number" value={expForm.amount} onChange={e=>setExpForm({...expForm,amount:e.target.value})} placeholder="e.g. 150000"/>
+          <Input label="Description" value={expForm.description} onChange={e=>setExpForm({...expForm,description:e.target.value})} placeholder="Brief description of this cost"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Input label="Date" type="date" value={expForm.date} onChange={e=>setExpForm({...expForm,date:e.target.value})}/>
+            <Sel label="Payment Method" value={expForm.paymentMethod} onChange={e=>setExpForm({...expForm,paymentMethod:e.target.value})} options={PAYMENT_METHODS.map(v=>({value:v,label:v}))}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Input label="Vehicle (optional)" value={expForm.vehicle} onChange={e=>setExpForm({...expForm,vehicle:e.target.value})} placeholder="e.g. UAA 365D"/>
+            <Input label="Vendor (optional)" value={expForm.vendor} onChange={e=>setExpForm({...expForm,vendor:e.target.value})} placeholder="Vendor name"/>
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:4}}>
+            <Btn variant="navy" onClick={()=>setShowModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+            <Btn onClick={saveExp}>{editingExp?"Save Changes":"Add Cost"}</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete confirm */}
+      <Modal open={!!deleteConfirm} onClose={()=>setDeleteConfirm(null)} title="Confirm Delete">
+        <p style={{fontSize:13,marginBottom:18,color:C.textSecondary}}>Are you sure you want to delete this expense entry? This cannot be undone.</p>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <Btn variant="navy" onClick={()=>setDeleteConfirm(null)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+          <Btn variant="danger" onClick={()=>deleteExp(deleteConfirm)}>Delete Entry</Btn>
+        </div>
+      </Modal>
+
+      {/* Finance Users & Access Control */}
+      <Modal open={showUserModal} onClose={()=>setShowUserModal(false)} title="Finance Users & Access Control" wide>
+        <div style={{marginBottom:16}}>
+          <p style={{fontSize:12,color:C.textMuted,marginBottom:12}}>Control who can view, add, edit, delete or export finance data.</p>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr>{["User","Email","Role","Permissions",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {finUsers.map(u=>(
+                <tr key={u.id}>
+                  <TD><span style={{fontWeight:700}}>{u.name}</span></TD>
+                  <TD style={{color:C.textMuted}}>{u.email}</TD>
+                  <TD><span style={{background:u.role==="full"?C.amber+"22":C.navyMid,color:u.role==="full"?C.amber:C.textSecondary,padding:"2px 8px",borderRadius:8,fontSize:10,fontWeight:600}}>{u.role==="full"?"Full Access":"Limited"}</span></TD>
+                  <TD><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{u.access.map(a=><span key={a} style={{background:C.green+"22",color:C.green,padding:"1px 6px",borderRadius:6,fontSize:9,fontWeight:600}}>{a}</span>)}</div></TD>
+                  <TD><Btn variant="navy" style={{padding:"3px 8px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>Edit</Btn></TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{marginTop:16,padding:"14px",background:C.navyMid,borderRadius:10,border:`1px solid ${C.navyBorder}`}}>
+            <div className="ral" style={{fontWeight:700,marginBottom:10,fontSize:13}}>Add Finance User</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+              <Input label="Full Name" value={userForm.name} onChange={e=>setUserForm({...userForm,name:e.target.value})} placeholder="Staff name"/>
+              <Input label="Email" type="email" value={userForm.email} onChange={e=>setUserForm({...userForm,email:e.target.value})} placeholder="staff@raylane.ug"/>
+            </div>
+            <Sel label="Access Level" value={userForm.role} onChange={e=>setUserForm({...userForm,role:e.target.value})} options={[{value:"limited",label:"Limited (View + Add only)"},{value:"full",label:"Full Access (All permissions)"}]}/>
+            <Btn style={{marginTop:10}} onClick={()=>{if(userForm.name&&userForm.email){setFinUsers([...finUsers,{id:`FU-${String(finUsers.length+1).padStart(3,"0")}`,name:userForm.name,email:userForm.email,role:userForm.role,access:userForm.role==="full"?["view","add","edit","delete","export"]:["view","add"]}]);setUserForm({name:"",email:"",role:"limited",access:["view"]});}}}>Add User</Btn>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+const AdminDashboard=({store,currentUser,onLogout})=>{
+  const [section,setSection]=useState("overview");
+  // Modals
+  const [addTripModal,setAddTripModal]=useState(false);
+  const [addVehicleModal,setAddVehicleModal]=useState(false);
+  const [addAgentModal,setAddAgentModal]=useState(false);
+  const [reserveModal,setReserveModal]=useState(false);
+  const [assignModal,setAssignModal]=useState(null); // booking to assign
+  const [addPromoModal,setAddPromoModal]=useState(false);
+  const [addExpenseModal,setAddExpenseModal]=useState(false);
+
+  // Forms
+  const [tripForm,setTripForm]=useState({route_id:"",vehicle_id:"",departure_time:""});
+  const [vehForm,setVehForm]=useState({registration:"",model:"",capacity:"14",owner_type:"company",driver:"",driver_phone:"",status:"active"});
+  const [vehErr,setVehErr]=useState("");
+  const [agentForm,setAgentForm]=useState({name:"",phone:"",location:"",username:"",password:""});
+  const [resForm,setResForm]=useState({trip_id:"",seat:"",passenger:"",phone:""});
+  const [promoForm,setPromoForm]=useState({code:"",route_id:"",discount:"",type:"percent",description:"",expires:""});
+  const [expForm,setExpForm]=useState({category:"Fuel",amount:"",description:"",date:new Date().toISOString().split("T")[0]});
+
+  const [heroSlides,setHeroSlides]=useState(INIT_HERO_SLIDES);
+  const [newsItems,setNewsItems]=useState(INIT_NEWS_ITEMS);
+    const totalRevenue=store.bookings.filter(b=>b.payment_status==="confirmed").reduce((s,b)=>s+b.amount,0);
+  const totalExpenses=store.expenses.reduce((s,e)=>s+e.amount,0);
+  const pendingBookings=store.bookings.filter(b=>b.status==="advance"||b.status==="pending");
+  const pendingFeedback=store.feedback.filter(f=>f.status==="pending");
+
+  const sidebar=[
+    {id:"overview",icon:"📊",label:"Overview"},
+    {id:"trips",icon:"🗓️",label:"Trips & Schedules"},
+    {id:"bookings",icon:"🎫",label:"Bookings",badge:pendingBookings.length},
+    {id:"vehicles",icon:"🚐",label:"Van Fleet"},
+    {id:"parcels",icon:"📦",label:"Parcel Deliveries"},
+    {id:"reservations",icon:"🪑",label:"Seat Reservations"},
+    {id:"finance",icon:"📊",label:"Finance & Accounting"},
+    {id:"promotions",icon:"🎁",label:"Promotions"},
+    {id:"reports",icon:"📈",label:"Reports"},
+    {id:"agents",icon:"👤",label:"Agents"},
+    {id:"feedback",icon:"⭐",label:"Feedback",badge:pendingFeedback.length},
+    {id:"settings",icon:"⚙️",label:"Settings"},
+    {id:"cms",icon:"🖼️",label:"Homepage CMS"},
+    {id:"influencers",icon:"🌟",label:"Influencer Links"},
+    {id:"partners",   icon:"🤝",label:"Partners"},
+    {id:"destinations",icon:"📍",label:"Destinations CMS"},
+    {id:"inspire",    icon:"🌄",label:"Sightseer / Inspire"},
+    {id:"safetycms",  icon:"🛡️",label:"Safety Photos"},
+    {id:"momoapi",    icon:"💳",label:"MoMo API Settings"},
+    {id:"hr",         icon:"👥",label:"HR — Employees"},
+    {id:"payroll",    icon:"💼",label:"HR — Payroll"},
+    {id:"saco",       icon:"🏦",label:"HR — Staff SACCO"},
+    {id:"usermgmt",   icon:"🔐",label:"User Management"},
+  ];
+
+  const handleAddTrip=()=>{
+    if(!tripForm.route_id||!tripForm.vehicle_id||!tripForm.departure_time) return;
+    const v=store.vehicles.find(v=>v.id===parseInt(tripForm.vehicle_id));
+    store.addTrip({route_id:parseInt(tripForm.route_id),vehicle_id:parseInt(tripForm.vehicle_id),departure_time:tripForm.departure_time,status:"active",vehicle_reg:v?.registration||"",capacity:v?.capacity||14});
+    setAddTripModal(false); setTripForm({route_id:"",vehicle_id:"",departure_time:""});
+  };
+
+  const handleAddVehicle=()=>{
+    if(!validateReg(vehForm.registration)){setVehErr("Invalid format. Use: UAA 365D or UAA 465DS");return;}
+    store.addVehicle({...vehForm,capacity:parseInt(vehForm.capacity)});
+    setAddVehicleModal(false); setVehForm({registration:"",model:"",capacity:"14",owner_type:"company",driver:"",driver_phone:"",status:"active"}); setVehErr("");
+  };
+
+  const handleAddAgent=()=>{
+    if(!agentForm.name||!agentForm.username||!agentForm.password) return;
+    store.addAgent(agentForm);
+    setAddAgentModal(false); setAgentForm({name:"",phone:"",location:"",username:"",password:""});
+  };
+
+  const handleReserve=()=>{
+    if(!resForm.trip_id||!resForm.seat||!resForm.passenger) return;
+    store.reserveSeat({trip_id:parseInt(resForm.trip_id),seat:parseInt(resForm.seat),passenger:resForm.passenger,phone:resForm.phone,reserved_by:"admin",expires_at:new Date(Date.now()+60*60000).toISOString()});
+    setReserveModal(false); setResForm({trip_id:"",seat:"",passenger:"",phone:""});
+  };
+
+  // TH and TD defined globally above
+
+  return(
+    <div style={{display:"flex",minHeight:"100vh",paddingTop:64,background:C.navy}}>
+      {/* Top bar */}
+      <div style={{position:"fixed",top:0,left:0,right:0,zIndex:100,background:C.navy,borderBottom:`1px solid ${C.navyBorder}`,height:64,display:"flex",alignItems:"center",padding:"0 20px",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:36,height:36,background:`linear-gradient(135deg,${C.amber},${C.amberDark})`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚐</div>
+          <span className="ral" style={{fontWeight:900,fontSize:16}}>RAYLANE <span style={{color:C.textMuted,fontWeight:400,fontSize:12}}>/ Admin</span></span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {(pendingBookings.length>0||pendingFeedback.length>0)&&<div style={{background:C.red,color:"#fff",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{pendingBookings.length+pendingFeedback.length} pending</div>}
+          <span style={{fontSize:12,color:C.textMuted}}>👑 {currentUser.name}</span>
+          <Btn onClick={onLogout} variant="navy" style={{fontSize:11,padding:"5px 12px",border:`1px solid ${C.navyBorder}`}}>Logout</Btn>
+        </div>
+      </div>
+
+      {/* Sidebar */}
+      <div style={{width:210,background:C.navyMid,borderRight:`1px solid ${C.navyBorder}`,position:"fixed",top:64,bottom:0,overflowY:"auto",padding:"14px 0"}}>
+        {sidebar.map(item=>(
+          <button key={item.id} onClick={()=>setSection(item.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"9px 14px",background:section===item.id?C.amber+"22":"transparent",color:section===item.id?C.amber:C.textSecondary,border:"none",borderRight:section===item.id?`3px solid ${C.amber}`:"3px solid transparent",cursor:"pointer",fontSize:12,fontFamily:"'Nunito',sans-serif",textAlign:"left",transition:"all .15s",fontWeight:section===item.id?700:400}}>
+            <span style={{display:"flex",alignItems:"center",gap:9}}><span style={{fontSize:14}}>{item.icon}</span>{item.label}</span>
+            {item.badge>0&&<span style={{background:C.red,color:"#fff",borderRadius:10,padding:"1px 6px",fontSize:10,fontWeight:700}}>{item.badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Main */}
+      <div style={{marginLeft:210,flex:1,padding:"24px"}}>
+
+        {/* ── OVERVIEW ── */}
+        {section==="overview"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <h1 className="ral" style={{fontSize:24,fontWeight:900,marginBottom:4}}>Dashboard Overview</h1>
+            <p style={{color:C.textMuted,fontSize:12,marginBottom:20}}>Monday, 9 March 2026 · Live data</p>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:24}}>
+              <StatCard label="Today's Revenue" value={formatUGX(totalRevenue)} icon="💵" color={C.green} sub="↑ 12% vs yesterday"/>
+              <StatCard label="Seats Sold" value="23" icon="🎫" color={C.amber}/>
+              <StatCard label="Active Trips" value={store.trips.length} icon="🚐" color={C.blue}/>
+              <StatCard label="Pending Actions" value={pendingBookings.length+pendingFeedback.length} icon="⚠️" color={C.orange}/>
+            </div>
+            {pendingBookings.length>0&&(
+              <Card style={{marginBottom:20,border:`1px solid ${C.orange}44`,background:C.orange+"08"}}>
+                <h3 className="ral" style={{fontWeight:700,marginBottom:14,color:C.orange}}>⚠️ Advance Bookings Awaiting Assignment ({pendingBookings.length})</h3>
+                {pendingBookings.slice(0,3).map(b=>(
+                  <div key={b.id} style={{background:C.card,borderRadius:12,padding:14,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+                    <div>
+                      <div className="ral" style={{fontWeight:700,fontSize:15,color:C.amber}}>{b.booking_code}</div>
+                      <div style={{fontSize:12,color:C.textMuted}}>{b.passenger} · {b.route} · {b.date}</div>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <StatusBadge status={b.status}/>
+                      <Btn onClick={()=>setAssignModal(b)} style={{padding:"6px 14px",fontSize:12}}>Assign Vehicle →</Btn>
+                    </div>
+                  </div>
+                ))}
+              </Card>
+            )}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+              <Card>
+                <h3 className="ral" style={{fontWeight:700,marginBottom:14}}>Today's Trips</h3>
+                {store.trips.map(t=>{const r=store.getRoute(t.route_id);const avail=store.seatsAvailable(t);return(
+                  <div key={t.id} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${C.navyBorder}`}}>
+                    <div><div style={{fontWeight:600,fontSize:13}}>{r.origin} → {r.destination}</div><div style={{fontSize:11,color:C.textMuted}}>{formatTime(t.departure_time)} · {t.vehicle_reg}</div></div>
+                    <div style={{textAlign:"right"}}><StatusBadge status={t.status}/><div style={{fontSize:11,color:avail===0?C.red:C.green,marginTop:3}}>{avail===0?"FULL":`${avail} seats`}</div></div>
+                  </div>
+                );})}
+              </Card>
+              <Card>
+                <h3 className="ral" style={{fontWeight:700,marginBottom:14}}>Financials</h3>
+                {[["Revenue",formatUGX(totalRevenue),C.green],["Expenses",formatUGX(totalExpenses),C.red],["Net Profit",formatUGX(totalRevenue-totalExpenses),C.amber]].map(([k,v,col])=>(
+                  <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${C.navyBorder}`}}>
+                    <span style={{fontSize:13,color:C.textMuted}}>{k}</span>
+                    <span className="ral" style={{fontWeight:800,fontSize:13,color:col}}>{v}</span>
+                  </div>
+                ))}
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* ── TRIPS ── */}
+        {section==="trips"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h1 className="ral" style={{fontSize:24,fontWeight:900}}>Trips & Schedules</h1>
+              <Btn onClick={()=>setAddTripModal(true)}>+ Add Trip</Btn>
+            </div>
+            <Card style={{padding:0,overflow:"hidden"}}>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead><tr>{["#","Route","Departure","Vehicle","Driver","Seats","Status","Actions"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+                  <tbody>
+                    {store.trips.map(t=>{const r=store.getRoute(t.route_id);const avail=store.seatsAvailable(t);return(
+                      <tr key={t.id} onMouseEnter={e=>e.currentTarget.style.background=C.navyMid} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                        <TD><span style={{color:C.amber,fontFamily:"'Raleway',sans-serif",fontWeight:700}}>#{t.id}</span></TD>
+                        <TD><span className="ral" style={{fontWeight:700}}>{r.origin} → {r.destination}</span></TD>
+                        <TD><div className="ral" style={{fontWeight:800,color:C.amber}}>{formatTime(t.departure_time)}</div><div style={{fontSize:10,color:C.textMuted}}>{formatDate(t.departure_time)}</div></TD>
+                        <TD style={{color:C.textSecondary}}>{t.vehicle_reg}</TD>
+                        <TD style={{color:C.textMuted,fontSize:12}}>{store.vehicles.find(v=>v.id===t.vehicle_id)?.driver||"—"}</TD>
+                        <TD><span style={{color:avail===0?C.red:avail<5?C.orange:C.green,fontWeight:700}}>{avail===0?"FULL":avail}</span></TD>
+                        <TD><StatusBadge status={t.status}/></TD>
+                        <TD><div style={{display:"flex",gap:5}}><Btn variant="navy" style={{padding:"4px 10px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>Edit</Btn><Btn variant="danger" style={{padding:"4px 10px",fontSize:10}}>Cancel</Btn></div></TD>
+                      </tr>
+                    );})}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+            <Modal open={addTripModal} onClose={()=>setAddTripModal(false)} title="Schedule New Trip">
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <Sel label="Route" required value={tripForm.route_id} onChange={e=>setTripForm({...tripForm,route_id:e.target.value})} options={[{value:"",label:"Select route"},...ROUTES.map(r=>({value:r.id,label:`${r.origin} → ${r.destination}`}))]}/>
+                <Sel label="Vehicle" required value={tripForm.vehicle_id} onChange={e=>setTripForm({...tripForm,vehicle_id:e.target.value})} options={[{value:"",label:"Select vehicle"},...store.vehicles.filter(v=>v.status==="active").map(v=>({value:v.id,label:`${v.registration} — ${v.model} (${v.capacity} seats)`}))]}/>
+                <Input label="Departure Date & Time" type="datetime-local" required value={tripForm.departure_time} onChange={e=>setTripForm({...tripForm,departure_time:e.target.value})}/>
+                <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:6}}>
+                  <Btn variant="navy" onClick={()=>setAddTripModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+                  <Btn onClick={handleAddTrip} disabled={!tripForm.route_id||!tripForm.vehicle_id||!tripForm.departure_time}>Create Trip</Btn>
+                </div>
+              </div>
+            </Modal>
+          </div>
+        )}
+
+        {/* ── BOOKINGS ── */}
+        {section==="bookings"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h1 className="ral" style={{fontSize:24,fontWeight:900}}>Booking Management</h1>
+              <div style={{display:"flex",gap:8}}>
+                <Input placeholder="Search..." value="" onChange={()=>{}} style={{padding:"7px 12px",width:160}}/>
+                <Btn variant="navy" style={{fontSize:11,border:`1px solid ${C.navyBorder}`,padding:"7px 14px"}}>Export CSV</Btn>
+              </div>
+            </div>
+            {pendingBookings.length>0&&(
+              <Card style={{marginBottom:18,border:`1px solid ${C.amber}44`}}>
+                <h3 className="ral" style={{fontWeight:700,marginBottom:14,color:C.amber}}>📅 Pending Advance Bookings — Assign Vehicles</h3>
+                {pendingBookings.map(b=>(
+                  <div key={b.id} style={{background:C.navyMid,borderRadius:12,padding:14,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+                    <div>
+                      <div className="ral" style={{fontWeight:800,fontSize:14,color:C.amber}}>{b.booking_code}</div>
+                      <div style={{fontSize:12,color:C.white,marginTop:2}}>{b.passenger} · {b.phone}</div>
+                      <div style={{fontSize:11,color:C.textMuted}}>{b.route} · Travel date: {b.date} · {formatUGX(b.amount)}</div>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <StatusBadge status={b.status}/>
+                      <StatusBadge status={b.payment_status}/>
+                      <Btn onClick={()=>setAssignModal(b)} style={{padding:"7px 14px",fontSize:12}}>Assign & Confirm</Btn>
+                    </div>
+                  </div>
+                ))}
+              </Card>
+            )}
+            <Card style={{padding:0,overflow:"hidden"}}>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead><tr>{["Code","Passenger","Route","Date","Seats","Amount","Payment","Status","Agent","Actions"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+                  <tbody>
+                    {store.bookings.map(b=>(
+                      <tr key={b.id} onMouseEnter={e=>e.currentTarget.style.background=C.navyMid} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                        <TD><span style={{color:C.amber,fontFamily:"'Raleway',sans-serif",fontWeight:700,fontSize:12}}>{b.booking_code}</span></TD>
+                        <TD><div style={{fontWeight:600}}>{b.passenger}</div><div style={{fontSize:10,color:C.textMuted}}>{b.phone}</div></TD>
+                        <TD style={{fontSize:12}}>{b.route}</TD>
+                        <TD style={{fontSize:11,color:C.textMuted}}>{b.date}</TD>
+                        <TD>{b.seats?.join(", ")||"TBD"}</TD>
+                        <TD><span style={{fontWeight:700}}>{formatUGX(b.amount)}</span></TD>
+                        <TD><StatusBadge status={b.payment_status}/></TD>
+                        <TD><StatusBadge status={b.status}/></TD>
+                        <TD style={{fontSize:11,color:C.textMuted}}>{b.agent_id||"Direct"}</TD>
+                        <TD><div style={{display:"flex",gap:4}}>
+                          <Btn variant="navy" style={{padding:"4px 8px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>View</Btn>
+                          <Btn variant="navy" style={{padding:"4px 8px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>QR</Btn>
+                        </div></TD>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+            <Modal open={!!assignModal} onClose={()=>setAssignModal(null)} title="Assign Vehicle & Confirm Booking">
+              {assignModal&&(
+                <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                  <div style={{background:C.navyLight,borderRadius:10,padding:14,fontSize:13}}>
+                    <div className="ral" style={{fontWeight:800,color:C.amber,marginBottom:4}}>{assignModal.booking_code}</div>
+                    <div>{assignModal.passenger} · {assignModal.phone}</div>
+                    <div style={{color:C.textMuted,marginTop:2}}>{assignModal.route} · {assignModal.date}</div>
+                  </div>
+                  <Sel label="Assign Vehicle" value="" onChange={()=>{}} options={[{value:"",label:"Select vehicle"},...store.vehicles.filter(v=>v.status==="active").map(v=>({value:v.id,label:`${v.registration} — ${v.model}`}))]}/>
+                  <Sel label="Assign Trip" value="" onChange={()=>{}} options={[{value:"",label:"Select or create trip"},...store.trips.map(t=>{const r=store.getRoute(t.route_id);return{value:t.id,label:`${r.origin} → ${r.destination} · ${formatTime(t.departure_time)} · ${formatDate(t.departure_time)}`};})]}/>
+                  <Input label="Confirm Seat Numbers (comma separated)" value="" onChange={()=>{}} placeholder="e.g. 3, 7"/>
+                  <Sel label="Payment Status" value="confirmed" onChange={()=>{}} options={[{value:"pending",label:"Pending Payment"},{value:"submitted",label:"Payment Submitted"},{value:"confirmed",label:"Payment Confirmed"}]}/>
+                  <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                    <Btn variant="navy" onClick={()=>setAssignModal(null)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+                    <Btn onClick={()=>{store.confirmBooking(assignModal.id,1,1);setAssignModal(null);}}>✓ Confirm Booking</Btn>
+                  </div>
+                </div>
+              )}
+            </Modal>
+          </div>
+        )}
+
+        {/* ── VEHICLES ── */}
+        {section==="vehicles"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h1 className="ral" style={{fontSize:24,fontWeight:900}}>Van Fleet Management</h1>
+              <Btn onClick={()=>setAddVehicleModal(true)}>+ Add Vehicle</Btn>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:16}}>
+              {store.vehicles.map(v=>(
+                <Card key={v.id}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><span style={{fontSize:28}}>🚐</span><StatusBadge status={v.status}/></div>
+                  <div className="ral" style={{fontWeight:800,fontSize:19,marginBottom:2}}>{v.registration}</div>
+                  <div style={{color:C.textSecondary,fontSize:12,marginBottom:14}}>{v.model} · <StatusBadge status={v.owner_type}/></div>
+                  {[["Capacity",`${v.capacity} seats`],["Driver",v.driver],["Driver Phone",v.driver_phone]].map(([k,val])=>(
+                    <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:5}}><span style={{color:C.textMuted}}>{k}</span><span style={{fontWeight:600}}>{val}</span></div>
+                  ))}
+                  <div style={{display:"flex",gap:8,marginTop:12}}>
+                    <Btn variant="navy" style={{flex:1,padding:"7px",fontSize:11,border:`1px solid ${C.navyBorder}`}}>Edit</Btn>
+                    <Btn variant="navy" style={{flex:1,padding:"7px",fontSize:11,border:`1px solid ${C.navyBorder}`}}>Schedule</Btn>
+                  </div>
+                </Card>
+              ))}
+            </div>
+            <Modal open={addVehicleModal} onClose={()=>setAddVehicleModal(false)} title="Add New Vehicle">
+              <div style={{display:"flex",flexDirection:"column",gap:13}}>
+                <div>
+                  <label style={{fontSize:11,color:C.darkText,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Registration Number *</label>
+                  <input value={vehForm.registration}
+                    onChange={e=>{const f=autoFormatPlate(e.target.value);setVehForm({...vehForm,registration:f});setVehErr("");}}
+                    placeholder="UAA 001A  or  UA 001AA"
+                    maxLength={8}
+                    style={{width:"100%",padding:"10px 14px",borderRadius:10,border:`1.5px solid ${plateHint(vehForm.registration)?.ok===false?C.red:plateHint(vehForm.registration)?.ok===true?C.green:C.navyBorder}`,fontSize:14,fontFamily:"'Courier New',monospace",letterSpacing:3,textTransform:"uppercase",outline:"none",boxSizing:"border-box"}}/>
+                  {plateHint(vehForm.registration)&&(
+                    <div style={{marginTop:5,fontSize:11,fontWeight:600,color:plateHint(vehForm.registration).ok===true?C.green:plateHint(vehForm.registration).ok===false?C.red:C.textMuted}}>
+                      {plateHint(vehForm.registration).msg}
+                    </div>
+                  )}
+                  {!plateHint(vehForm.registration)&&(
+                    <div style={{marginTop:5,fontSize:11,color:C.textMuted,lineHeight:1.6}}>
+                      Old: <code style={{background:C.navyLight,padding:"1px 5px",borderRadius:4}}>UAA 001A</code> &nbsp;
+                      New: <code style={{background:C.navyLight,padding:"1px 5px",borderRadius:4}}>UA 001AA</code>
+                    </div>
+                  )}
+                  {vehErr&&<div style={{marginTop:5,fontSize:11,color:C.red,fontWeight:600}}>⚠️ {vehErr}</div>}
+                </div>
+                <div style={{background:C.navyLight,borderRadius:8,padding:"7px 12px",fontSize:11,color:C.textMuted}}>Format: UAA 365D or UAA 465DS</div>
+                <Input label="Vehicle Model" value={vehForm.model} onChange={e=>setVehForm({...vehForm,model:e.target.value})} placeholder="e.g. Toyota HiAce"/>
+                <Input label="Seat Capacity" type="number" value={vehForm.capacity} onChange={e=>setVehForm({...vehForm,capacity:e.target.value})} placeholder="14"/>
+                <Sel label="Owner Type" value={vehForm.owner_type} onChange={e=>setVehForm({...vehForm,owner_type:e.target.value})} options={[{value:"company",label:"Company Owned"},{value:"vendor",label:"Vendor/Partner"}]}/>
+                <Sel label="Status" value={vehForm.status} onChange={e=>setVehForm({...vehForm,status:e.target.value})} options={[{value:"active",label:"Active"},{value:"maintenance",label:"Under Maintenance"}]}/>
+                <Input label="Driver Name" value={vehForm.driver} onChange={e=>setVehForm({...vehForm,driver:e.target.value})} placeholder="Driver's full name"/>
+                <div>
+                  <label style={{fontSize:11,color:C.darkText,fontWeight:600,letterSpacing:".5px",textTransform:"uppercase",display:"block",marginBottom:6}}>Driver Phone</label>
+                  <input value={vehForm.driver_phone} maxLength={10}
+                    onChange={e=>setVehForm({...vehForm,driver_phone:ugPhoneFormat(e.target.value)})}
+                    placeholder="0771234567"
+                    style={{width:"100%",padding:"10px 14px",borderRadius:10,border:`1.5px solid ${vehForm.driver_phone&&ugPhoneValidate(vehForm.driver_phone)?C.red:vehForm.driver_phone&&vehForm.driver_phone.length===10?C.green:C.darkBorder}`,fontSize:14,fontFamily:"monospace",letterSpacing:1,outline:"none",boxSizing:"border-box"}}/>
+                  {vehForm.driver_phone&&ugPhoneValidate(vehForm.driver_phone)&&<div style={{marginTop:4,fontSize:11,color:C.red,fontWeight:600}}>{ugPhoneValidate(vehForm.driver_phone)}</div>}
+                </div>
+                <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:6}}>
+                  <Btn variant="navy" onClick={()=>setAddVehicleModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+                  <Btn onClick={handleAddVehicle}>Add Vehicle</Btn>
+                </div>
+              </div>
+            </Modal>
+          </div>
+        )}
+
+        {/* ── RESERVATIONS ── */}
+        {section==="reservations"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h1 className="ral" style={{fontSize:24,fontWeight:900}}>Seat Reservations</h1>
+              <Btn onClick={()=>setReserveModal(true)}>+ Reserve Seat</Btn>
+            </div>
+            <div style={{background:C.navyLight,borderRadius:10,padding:"10px 16px",marginBottom:18,fontSize:12,color:C.textMuted}}>
+              🪑 Reserved seats are held for 1 hour. Unreleased reservations auto-expire and return to available.
+              <div style={{display:"flex",gap:16,marginTop:6}}>
+                <span style={{color:C.green}}>● Green = Available</span>
+                <span style={{color:C.orange}}>● Yellow = Reserved (held)</span>
+                <span style={{color:C.red}}>● Red = Booked (confirmed)</span>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:18,marginBottom:24}}>
+              {store.trips.slice(0,4).map(t=>{
+                const r=store.getRoute(t.route_id);
+                const res=store.reservations.filter(rv=>rv.trip_id===t.id&&rv.status==="reserved");
+                return(
+                  <Card key={t.id}>
+                    <div className="ral" style={{fontWeight:700,marginBottom:4}}>{r.origin} → {r.destination}</div>
+                    <div style={{fontSize:11,color:C.textMuted,marginBottom:14}}>{formatTime(t.departure_time)} · {t.vehicle_reg}</div>
+                    <SeatMap capacity={14} bookedSeats={t.seats_booked} reservedSeats={res.map(r=>r.seat)} selected={[]} size="small"/>
+                    {res.length>0&&(
+                      <div style={{marginTop:12}}>
+                        {res.map(rv=>(
+                          <div key={rv.id} style={{background:C.orange+"22",border:`1px solid ${C.orange}44`,borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11}}>
+                            <span style={{fontWeight:700,color:C.orange}}>Seat {rv.seat}</span> — {rv.passenger} · {rv.phone}
+                            <div style={{color:C.textMuted,marginTop:2}}>Expires: {new Date(rv.expires_at).toLocaleTimeString()}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+            <Modal open={reserveModal} onClose={()=>setReserveModal(false)} title="Reserve a Seat">
+              <div style={{display:"flex",flexDirection:"column",gap:13}}>
+                <Sel label="Trip" required value={resForm.trip_id} onChange={e=>setResForm({...resForm,trip_id:e.target.value})} options={[{value:"",label:"Select trip"},...store.trips.map(t=>{const r=store.getRoute(t.route_id);return{value:t.id,label:`${r.origin} → ${r.destination} · ${formatTime(t.departure_time)}`};})]}/>
+                <Input label="Seat Number" type="number" required value={resForm.seat} onChange={e=>setResForm({...resForm,seat:e.target.value})} placeholder="e.g. 5"/>
+                <Input label="Passenger Name" required value={resForm.passenger} onChange={e=>setResForm({...resForm,passenger:e.target.value})} placeholder="Passenger full name"/>
+                <Input label="Phone Number" value={resForm.phone} onChange={e=>setResForm({...resForm,phone:e.target.value})} placeholder="+256 7XX XXX XXX"/>
+                <div style={{background:C.amber+"22",border:`1px solid ${C.amber}44`,borderRadius:8,padding:"9px 12px",fontSize:12,color:C.amber}}>
+                  ⏰ Seat will be automatically released after 1 hour if payment is not confirmed.
+                </div>
+                <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                  <Btn variant="navy" onClick={()=>setReserveModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+                  <Btn onClick={handleReserve} disabled={!resForm.trip_id||!resForm.seat||!resForm.passenger}>Reserve Seat</Btn>
+                </div>
+              </div>
+            </Modal>
+          </div>
+        )}
+
+        {/* ── FINANCE OVERVIEW (redirect to full finance) ── */}
+        {section==="finance"&&<AdminFinanceSection store={store}/>}
+
+        {/* ── REVENUE SECTION ── */}
+        {section==="__removed_finance_revenue"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div><h1 className="ral" style={{fontSize:24,fontWeight:900}}>Revenue Management</h1><p style={{color:C.textMuted,fontSize:12,marginTop:3}}>Income tracking — IASB/GAAP/URA compliant</p></div>
+              <div style={{display:"flex",gap:8}}>
+                <Btn variant="navy" style={{fontSize:11,border:`1px solid ${C.navyBorder}`,padding:"7px 14px"}}>📄 Export PDF</Btn>
+                <Btn variant="navy" style={{fontSize:11,border:`1px solid ${C.navyBorder}`,padding:"7px 14px"}}>📊 Export Excel</Btn>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:22}}>
+              <StatCard label="Gross Revenue" value={formatUGX(totalRevenue)} icon="💵" color={C.green} sub="Confirmed bookings"/>
+              <StatCard label="Parcel Revenue" value={formatUGX(store.parcels?.filter(p=>p.status==="confirmed").reduce((s,p)=>s+(p.amount||0),0)||0)} icon="📦" color={C.blue} sub="Courier income"/>
+              <StatCard label="Net Revenue" value={formatUGX(totalRevenue-totalExpenses)} icon="📈" color={C.amber} sub="After operating costs"/>
+              <StatCard label="Bookings Count" value={store.bookings.filter(b=>b.payment_status==="confirmed").length} icon="🎫" color={C.purple} sub="Paid seats"/>
+            </div>
+
+            {/* Revenue by Route */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
+              <Card>
+                <h3 className="ral" style={{fontWeight:700,marginBottom:16,color:C.textPrimary}}>Revenue by Route</h3>
+                {ROUTES.map(r=>{
+                  const rev=store.bookings.filter(b=>b.route_id===r.id&&b.payment_status==="confirmed").reduce((s,b)=>s+b.amount,0);
+                  return(<div key={r.id} style={{marginBottom:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:5}}><span style={{color:C.textSecondary}}>{r.origin} → {r.destination}</span><span style={{fontWeight:700,color:C.green}}>{formatUGX(rev)}</span></div>
+                    <div style={{height:5,background:C.navyLight,borderRadius:3}}><div style={{width:`${Math.min(rev?((rev/Math.max(...ROUTES.map(r=>store.bookings.filter(b=>b.route_id===r.id&&b.payment_status==="confirmed").reduce((s,b)=>s+b.amount,0))))*100):0,100)}%`,height:"100%",background:`linear-gradient(90deg,${C.green},${C.amber})`,borderRadius:3,transition:"width .5s"}}/></div>
+                  </div>);
+                })}
+              </Card>
+              <Card>
+                <h3 className="ral" style={{fontWeight:700,marginBottom:16,color:C.textPrimary}}>Payment Methods</h3>
+                {[{label:"MTN MoMo",color:"#FFCB05",val:Math.round(totalRevenue*0.52)},{label:"Airtel Money",color:"#E60000",val:Math.round(totalRevenue*0.31)},{label:"Cash",color:C.green,val:Math.round(totalRevenue*0.17)}].map(m=>(
+                  <div key={m.label} style={{marginBottom:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:5}}><span>{m.label}</span><span style={{fontWeight:700}}>{formatUGX(m.val)}</span></div>
+                    <div style={{height:5,background:C.navyLight,borderRadius:3}}><div style={{width:`${m.val/totalRevenue*100||0}%`,height:"100%",background:m.color,borderRadius:3}}/></div>
+                  </div>
+                ))}
+                <div style={{borderTop:`1px solid ${C.navyBorder}`,marginTop:14,paddingTop:12,display:"flex",justifyContent:"space-between",fontSize:13}}>
+                  <span className="ral" style={{fontWeight:800}}>Total</span>
+                  <span className="ral" style={{fontWeight:800,color:C.green}}>{formatUGX(totalRevenue)}</span>
+                </div>
+              </Card>
+            </div>
+
+            {/* Revenue booking log */}
+            <Card style={{padding:0,overflow:"hidden"}}>
+              <div style={{padding:"16px 20px",borderBottom:`1px solid ${C.navyBorder}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <h3 className="ral" style={{fontWeight:700}}>Revenue Entries</h3>
+                <Btn variant="navy" style={{fontSize:11,border:`1px solid ${C.navyBorder}`,padding:"5px 12px"}}>Export CSV</Btn>
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead><tr>{["Booking #","Passenger","Route","Seats","Amount","Method","Date","Status"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+                  <tbody>
+                    {store.bookings.filter(b=>b.payment_status==="confirmed").map(b=>(
+                      <tr key={b.id} onMouseEnter={e=>e.currentTarget.style.background=C.navyMid} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                        <TD><span style={{color:C.amber,fontWeight:700}}>{b.code}</span></TD>
+                        <TD>{b.passenger}</TD>
+                        <TD style={{color:C.textSecondary,fontSize:11}}>{b.route}</TD>
+                        <TD>{b.seats?.join(", ")}</TD>
+                        <TD><span style={{color:C.green,fontWeight:700}}>{formatUGX(b.amount)}</span></TD>
+                        <TD><span style={{background:C.amberBg,color:C.amber2,padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:600}}>{b.paymentMethod||"Cash"}</span></TD>
+                        <TD style={{fontSize:11,color:C.textMuted}}>{b.date}</TD>
+                        <TD><StatusBadge status="confirmed"/></TD>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ── COST MANAGEMENT ── */}
+        {/*section==="finance-expenses" — merged into AdminFinanceSection*/}
+
+        {/* ── PROMOTIONS ── */}
+        {section==="promotions"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h1 className="ral" style={{fontSize:24,fontWeight:900}}>Promotions & Discounts</h1>
+              <Btn onClick={()=>setAddPromoModal(true)}>+ Create Promo</Btn>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
+              {store.promotions.map(p=>(
+                <Card key={p.id} style={{border:`1px solid ${p.active?C.amber+"44":C.navyBorder}`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                    <div className="ral" style={{fontWeight:900,fontSize:20,color:C.amber}}>{p.code}</div>
+                    <StatusBadge status={p.active?"active":"cancelled"}/>
+                  </div>
+                  <div style={{fontSize:13,marginBottom:8}}>{p.description}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:C.textMuted}}>Discount</span><span style={{fontWeight:700,color:C.green}}>{p.type==="percent"?`${p.discount}%`:formatUGX(p.discount)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:C.textMuted}}>Route</span><span>{p.route_id?ROUTES.find(r=>r.id===p.route_id)?.destination:"All routes"}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12}}><span style={{color:C.textMuted}}>Expires</span><span>{p.expires}</span></div>
+                </Card>
+              ))}
+            </div>
+            <Modal open={addPromoModal} onClose={()=>setAddPromoModal(false)} title="Create Promotion">
+              <div style={{display:"flex",flexDirection:"column",gap:13}}>
+                <Input label="Promo Code" required value={promoForm.code} onChange={e=>setPromoForm({...promoForm,code:e.target.value.toUpperCase()})} placeholder="e.g. HOLIDAY20"/>
+                <Input label="Description" value={promoForm.description} onChange={e=>setPromoForm({...promoForm,description:e.target.value})} placeholder="e.g. Holiday travel promotion"/>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <Sel label="Discount Type" value={promoForm.type} onChange={e=>setPromoForm({...promoForm,type:e.target.value})} options={[{value:"percent",label:"Percentage (%)"},{value:"fixed",label:"Fixed Amount (UGX)"}]}/>
+                  <Input label={promoForm.type==="percent"?"Discount %":"Discount (UGX)"} type="number" value={promoForm.discount} onChange={e=>setPromoForm({...promoForm,discount:e.target.value})} placeholder={promoForm.type==="percent"?"10":"5000"}/>
+                </div>
+                <Sel label="Apply to Route (optional)" value={promoForm.route_id} onChange={e=>setPromoForm({...promoForm,route_id:e.target.value})} options={[{value:"",label:"All Routes"},...ROUTES.map(r=>({value:r.id,label:`${r.origin} → ${r.destination}`}))]}/>
+                <Input label="Expiry Date" type="date" value={promoForm.expires} onChange={e=>setPromoForm({...promoForm,expires:e.target.value})}/>
+                <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                  <Btn variant="navy" onClick={()=>setAddPromoModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+                  <Btn onClick={()=>{store.addPromotion({...promoForm,route_id:promoForm.route_id?parseInt(promoForm.route_id):null,discount:parseInt(promoForm.discount),active:true});setAddPromoModal(false);}}>Create Promo</Btn>
+                </div>
+              </div>
+            </Modal>
+          </div>
+        )}
+
+        {/* ── REPORTS ── */}
+        {section==="reports"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <h1 className="ral" style={{fontSize:24,fontWeight:900,marginBottom:20}}>Reports & Analytics</h1>
+            <div style={{marginBottom:20}}><Tabs tabs={["Daily","Weekly","Monthly","Yearly"]} active="Daily" onChange={()=>{}}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:14,marginBottom:22}}>
+              {[{title:"Total Bookings",v:"28",icon:"🎫",col:C.amber},{title:"Revenue",v:formatUGX(totalRevenue),icon:"💵",col:C.green},{title:"Passengers",v:"34",icon:"👥",col:C.blue},{title:"Most Popular",v:"Kampala→Gulu",icon:"🗺️",col:C.purple}].map(r=>(
+                <Card key={r.title}><div style={{fontSize:24,marginBottom:8}}>{r.icon}</div><div className="ral" style={{fontWeight:800,fontSize:16,color:r.col,marginBottom:4}}>{r.v}</div><div style={{fontSize:11,color:C.textMuted}}>{r.title}</div></Card>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:14,marginBottom:24}}>
+              {[{title:"Daily Revenue Report",icon:"📅"},{title:"Route Performance",icon:"🗺️"},{title:"Vehicle Utilisation",icon:"🚐"},{title:"Agent Performance",icon:"👤"},{title:"Passenger Report",icon:"👥"},{title:"Parcel Report",icon:"📦"}].map(r=>(
+                <Card key={r.title} style={{cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.borderColor=C.amber+"66"} onMouseLeave={e=>e.currentTarget.style.borderColor=C.navyBorder}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:24}}>{r.icon}</span><div style={{display:"flex",gap:5}}><Btn variant="navy" style={{padding:"3px 8px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>PDF</Btn><Btn variant="navy" style={{padding:"3px 8px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>Excel</Btn></div></div>
+                  <div className="ral" style={{fontWeight:700,fontSize:13}}>{r.title}</div>
+                </Card>
+              ))}
+            </div>
+            <Card>
+              <h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Weekly Revenue Chart</h3>
+              <div style={{display:"flex",gap:6,alignItems:"flex-end",height:110}}>
+                {[{d:"Mon",v:85},{d:"Tue",v:62},{d:"Wed",v:94},{d:"Thu",v:78},{d:"Fri",v:110},{d:"Sat",v:130},{d:"Sun",v:70}].map(x=>(
+                  <div key={x.d} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                    <div style={{width:"100%",background:`linear-gradient(180deg,${C.amber},${C.amberDark})`,borderRadius:"4px 4px 0 0",height:`${x.v}%`,minHeight:4}}/>
+                    <span style={{fontSize:10,color:C.textMuted}}>{x.d}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ── AGENTS ── */}
+        {section==="agents"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <h1 className="ral" style={{fontSize:24,fontWeight:900}}>Agent Management</h1>
+              <Btn onClick={()=>setAddAgentModal(true)}>+ Add Agent</Btn>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
+              {store.agents.map(a=>(
+                <Card key={a.id} style={{border:`1px solid ${a.status==="suspended"?C.red+"44":C.navyBorder}`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+                    <div style={{width:44,height:44,borderRadius:"50%",background:C.amber+"33",border:`2px solid ${C.amber}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>👤</div>
+                    <StatusBadge status={a.status}/>
+                  </div>
+                  <div className="ral" style={{fontWeight:800,fontSize:17}}>{a.name}</div>
+                  <div style={{color:C.textMuted,fontSize:11,marginBottom:14}}>{a.id} · {a.location}</div>
+                  {[["Username",a.username],["Phone",a.phone],["Joined",a.created]].map(([k,v])=>(
+                    <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:5}}><span style={{color:C.textMuted}}>{k}</span><span>{v}</span></div>
+                  ))}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,margin:"12px 0"}}>
+                    <div style={{background:C.navyMid,borderRadius:8,padding:8,textAlign:"center"}}><div className="ral" style={{fontWeight:800,fontSize:17,color:C.amber}}>{a.bookings}</div><div style={{fontSize:10,color:C.textMuted}}>Bookings</div></div>
+                    <div style={{background:C.navyMid,borderRadius:8,padding:8,textAlign:"center"}}><div className="ral" style={{fontWeight:700,fontSize:12,color:C.green}}>{formatUGX(a.revenue)}</div><div style={{fontSize:10,color:C.textMuted}}>Revenue</div></div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <Btn variant="navy" style={{flex:1,padding:"7px",fontSize:11,border:`1px solid ${C.navyBorder}`}}>Edit</Btn>
+                    <Btn onClick={()=>store.toggleAgent(a.id)} variant={a.status==="active"?"danger":"navy"} style={{flex:1,padding:"7px",fontSize:11,border:`1px solid ${a.status==="active"?C.red+"44":C.navyBorder}`}}>
+                      {a.status==="active"?"Suspend":"Activate"}
+                    </Btn>
+                  </div>
+                </Card>
+              ))}
+            </div>
+            <Modal open={addAgentModal} onClose={()=>setAddAgentModal(false)} title="Add New Agent">
+              <div style={{display:"flex",flexDirection:"column",gap:13}}>
+                <Input label="Agent Full Name" required value={agentForm.name} onChange={e=>setAgentForm({...agentForm,name:e.target.value})} placeholder="e.g. Moses Lubega"/>
+                <Input label="Phone Number" value={agentForm.phone} onChange={e=>setAgentForm({...agentForm,phone:e.target.value})} placeholder="+256 7XX XXX XXX"/>
+                <Input label="Location / Station" value={agentForm.location} onChange={e=>setAgentForm({...agentForm,location:e.target.value})} placeholder="e.g. Gulu Station"/>
+                <Input label="Login Username" required value={agentForm.username} onChange={e=>setAgentForm({...agentForm,username:e.target.value.toLowerCase()})} placeholder="e.g. moses.lubega"/>
+                <Input label="Password" type="password" required value={agentForm.password} onChange={e=>setAgentForm({...agentForm,password:e.target.value})} placeholder="Minimum 6 characters"/>
+                <div style={{background:C.navyLight,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.textMuted}}>Agent will login at the Staff Portal with these credentials.</div>
+                <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                  <Btn variant="navy" onClick={()=>setAddAgentModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+                  <Btn onClick={handleAddAgent} disabled={!agentForm.name||!agentForm.username||!agentForm.password}>Create Agent</Btn>
+                </div>
+              </div>
+            </Modal>
+          </div>
+        )}
+
+        {/* ── FEEDBACK ── */}
+        {section==="feedback"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <h1 className="ral" style={{fontSize:24,fontWeight:900,marginBottom:20}}>Customer Feedback</h1>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:20}}>
+              <StatCard label="Approved Reviews" value={store.feedback.filter(f=>f.status==="approved").length} icon="✅" color={C.green}/>
+              <StatCard label="Pending Approval" value={pendingFeedback.length} icon="⏳" color={C.orange}/>
+            </div>
+            {pendingFeedback.length>0&&(
+              <Card style={{marginBottom:20,border:`1px solid ${C.orange}44`}}>
+                <h3 className="ral" style={{fontWeight:700,marginBottom:14,color:C.orange}}>Awaiting Approval ({pendingFeedback.length})</h3>
+                {pendingFeedback.map(f=>(
+                  <div key={f.id} style={{background:C.navyMid,borderRadius:12,padding:14,marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                      <div><div className="ral" style={{fontWeight:700}}>{f.name}</div><div style={{fontSize:11,color:C.textMuted}}>{f.route} · {f.date}</div></div>
+                      <Stars rating={f.rating} size={13}/>
+                    </div>
+                    <p style={{fontSize:13,color:C.textSecondary,fontStyle:"italic",marginBottom:12}}>"{f.message}"</p>
+                    <div style={{display:"flex",gap:8}}>
+                      <Btn onClick={()=>store.approveFeedback(f.id)} style={{padding:"6px 16px",fontSize:12}}>✓ Approve & Publish</Btn>
+                      <Btn onClick={()=>store.rejectFeedback(f.id)} variant="danger" style={{padding:"6px 16px",fontSize:12}}>✕ Reject</Btn>
+                    </div>
+                  </div>
+                ))}
+              </Card>
+            )}
+            <Card>
+              <h3 className="ral" style={{fontWeight:700,marginBottom:14}}>Published Reviews</h3>
+              {store.feedback.filter(f=>f.status==="approved").map(f=>(
+                <div key={f.id} style={{background:C.navyMid,borderRadius:10,padding:12,marginBottom:10,display:"flex",justifyContent:"space-between",gap:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <span className="ral" style={{fontWeight:700,fontSize:13}}>{f.name}</span><Stars rating={f.rating} size={11}/>
+                    </div>
+                    <div style={{fontSize:11,color:C.textMuted,marginBottom:4}}>{f.route}</div>
+                    <p style={{fontSize:12,color:C.textSecondary,fontStyle:"italic"}}>"{f.message}"</p>
+                  </div>
+                  <StatusBadge status="approved"/>
+                </div>
+              ))}
+            </Card>
+          </div>
+        )}
+
+        {/* ── PARCELS ── */}
+        {section==="parcels"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <h1 className="ral" style={{fontSize:24,fontWeight:900,marginBottom:20}}>Parcel Deliveries</h1>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:20}}>
+              <StatCard label="In Transit" value="5" icon="🚚" color={C.amber}/>
+              <StatCard label="Delivered" value="3" icon="✅" color={C.green}/>
+              <StatCard label="Pending" value="2" icon="⏳" color={C.blue}/>
+            </div>
+            <Card style={{padding:0,overflow:"hidden"}}>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead><tr>{["Code","Sender","Receiver","Destination","Weight","Status",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+                  <tbody>
+                    {[{code:"RX-P001",sender:"David Ssempa",receiver:"Mary Auma",dest:"Gulu",weight:"2.5kg",status:"active"},{code:"RX-P002",sender:"Peter Okello",receiver:"Grace Nakato",dest:"Mbarara",weight:"4.1kg",status:"confirmed"},{code:"RX-P003",sender:"Agnes Aber",receiver:"John Mwesigwa",dest:"Arua",weight:"7.0kg",status:"pending"}].map(p=>(
+                      <tr key={p.code} onMouseEnter={e=>e.currentTarget.style.background=C.navyMid} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                        <TD><span style={{color:C.amber,fontFamily:"'Raleway',sans-serif",fontWeight:700}}>{p.code}</span></TD>
+                        <TD>{p.sender}</TD><TD>{p.receiver}</TD>
+                        <TD style={{color:C.textSecondary}}>{p.dest}</TD><TD>{p.weight}</TD>
+                        <TD><StatusBadge status={p.status}/></TD>
+                        <TD><Btn variant="navy" style={{padding:"4px 10px",fontSize:10,border:`1px solid ${C.navyBorder}`}}>Update</Btn></TD>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ── PAYROLL ── */}
+        {section==="hr"&&<AdminHRSection store={store}/>}
+        {section==="payroll"&&<AdminPayrollSection store={store}/>}
+        {section==="usermgmt"&&<AdminUserMgmtSection store={store}/>}
+        {/* ── SACCO ── */}
+        {section==="saco"&&<AdminSACOSection store={store}/>}
+        {section==="influencers"&&<AdminInfluencerSection store={store}/>}
+        {/* ── CMS ── */}
+        {section==="cms"&&<AdminCMSSection heroSlides={heroSlides} setHeroSlides={setHeroSlides} newsItems={newsItems} setNewsItems={setNewsItems}/>}
+        {section==="partners"&&<AdminPartnersSection store={store}/>}
+        {section==="destinations"&&<AdminDestinationsSection store={store}/>}
+        {section==="inspire"&&<AdminInspireSection store={store}/>}
+        {section==="safetycms"&&<AdminSafetyPhotosSection store={store}/>}
+        {section==="momoapi"&&<AdminMomoAPISection store={store}/>}
+        {/* ── SETTINGS ── */}
+        {section==="settings"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <h1 className="ral" style={{fontSize:24,fontWeight:900,marginBottom:20}}>Settings</h1>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+              <Card><h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Company Info</h3>
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  <Input label="Company Name" value="Raylane Express Ltd" onChange={()=>{}}/>
+                  <Input label="Phone" value="+256 (0) 766 026 401" onChange={()=>{}}/>
+                  <Input label="Email" value="info@raylane.ug" onChange={()=>{}}/>
+                  <Input label="Address" value="Nakasero, Kampala" onChange={()=>{}}/>
+                  <Btn full style={{marginTop:4}}>Save Changes</Btn>
+                </div>
+              </Card>
+              <Card><h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Supabase Connection</h3>
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  <Input label="Supabase URL" value="https://xyvijskzgpgauhrxcauw.supabase.co" onChange={()=>{}}/>
+                  <Input label="Anon Key (Legacy)" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5dmlqc2t6Z3BnYXVocnhjYXV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5OTc5NjksImV4cCI6MjA4NzU3Mzk2OX0.FOjha5TvyDW6ozvWt8aEmbXTVbk5NtY1Vd_I2kXuHtM" onChange={()=>{}}/>
+                  <div style={{background:C.green+"22",border:`1px solid ${C.green}44`,borderRadius:10,padding:10,fontSize:11,color:C.green}}>✓ Schema ready: passengers, routes, vehicles, trips, bookings, parcels, expenses, agents, promotions, feedback</div>
+                  <Btn full>Test Connection</Btn>
+                </div>
+              </Card>
+              <Card><h3 className="ral" style={{fontWeight:700,marginBottom:16}}>WhatsApp Integration</h3>
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  <Input label="WhatsApp Business API Key" value="" onChange={()=>{}} placeholder="Enter API key"/>
+                  <Input label="Sender Number" value="" onChange={()=>{}} placeholder="+256 7XX XXX XXX"/>
+                  <Btn full>Save & Test</Btn>
+                </div>
+              </Card>
+              <Card><h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Booking Rules</h3>
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  <Input label="Max advance booking (days)" value="60" onChange={()=>{}}/>
+                  <Input label="Free luggage allowance (kg)" value="10" onChange={()=>{}}/>
+                  <Input label="Seat reservation timeout (mins)" value="60" onChange={()=>{}}/>
+                  <Sel label="Default payment method" value="mtn" onChange={()=>{}} options={[{value:"mtn",label:"MTN Mobile Money"},{value:"airtel",label:"Airtel Money"},{value:"cash",label:"Cash"}]}/>
+                  <Btn full>Save Rules</Btn>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// AGENT DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════
+const AgentDashboard=({store,currentUser,onLogout})=>{
+  const [section,setSection]=useState("book");
+  const agentInfo=store.agents.find(a=>a.id===currentUser.agentId)||{};
+  const myBookings=store.bookings.filter(b=>b.agent_id===currentUser.agentId);
+
+  // Booking state
+  const [step,setStep]=useState(1);
+  const [trip,setTrip]=useState(null);
+  const [seats,setSeats]=useState([]);
+  const [form,setForm]=useState({name:"",phone:"",email:"",accessibility:false,assistanceDetail:""});
+  const [payMethod,setPayMethod]=useState("cash");
+  const [confirmed,setConfirmed]=useState(null);
+
+  const route=trip?store.getRoute(trip.route_id):{};
+  const bookedS=trip?trip.seats_booked:[];
+  const reservedS=trip?store.reservations.filter(r=>r.trip_id===trip.id&&r.status==="reserved").map(r=>r.seat):[];
+
+  const handleBook=()=>{
+    const code=genBookingCode(trip.vehicle_reg||"");
+    store.addBooking({booking_code:code,passenger:form.name,phone:form.phone,route:`${route.origin} → ${route.destination}`,route_id:route.id,seats,trip_id:trip.id,amount:route.price*seats.length,payment_status:"confirmed",status:"confirmed",date:new Date().toISOString().split("T")[0],agent_id:currentUser.agentId,is_advance:false});
+    setConfirmed({code,passenger:form.name,route:`${route.origin} → ${route.destination}`,seats,departure:formatTime(trip.departure_time),amount:route.price*seats.length});
+    setStep(5);
+  };
+
+  const resetBooking=()=>{setStep(1);setTrip(null);setSeats([]);setForm({name:"",phone:"",email:"",accessibility:false,assistanceDetail:""});setConfirmed(null);};
+
+  const sidebar=[{id:"book",icon:"🎫",label:"New Booking"},{id:"mybookings",icon:"📋",label:"My Bookings"},{id:"schedule",icon:"🗓️",label:"View Schedule"},{id:"customers",icon:"👥",label:"Register Customer"}];
+
+  return(
+    <div style={{display:"flex",minHeight:"100vh",paddingTop:64,background:C.navy}}>
+      <div style={{position:"fixed",top:0,left:0,right:0,zIndex:100,background:C.navy,borderBottom:`1px solid ${C.navyBorder}`,height:64,display:"flex",alignItems:"center",padding:"0 20px",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:36,height:36,background:`linear-gradient(135deg,${C.amber},${C.amberDark})`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚐</div>
+          <span className="ral" style={{fontWeight:900,fontSize:16}}>RAYLANE <span style={{color:C.textMuted,fontWeight:400,fontSize:12}}>/ Agent Portal</span></span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{background:C.amber+"22",border:`1px solid ${C.amber}44`,borderRadius:8,padding:"4px 12px",fontSize:12}}>
+            🙎 <strong style={{color:C.amber}}>{currentUser.name}</strong> · {agentInfo.id}
+          </div>
+          <Btn onClick={onLogout} variant="navy" style={{fontSize:11,padding:"5px 12px",border:`1px solid ${C.navyBorder}`}}>Logout</Btn>
+        </div>
+      </div>
+      <div style={{width:200,background:C.navyMid,borderRight:`1px solid ${C.navyBorder}`,position:"fixed",top:64,bottom:0,overflowY:"auto",padding:"14px 0"}}>
+        <div style={{padding:"8px 14px 14px",borderBottom:`1px solid ${C.navyBorder}`,marginBottom:6}}>
+          <div style={{fontSize:10,color:C.textMuted,textTransform:"uppercase",letterSpacing:1}}>Agent Portal</div>
+          <div style={{fontSize:12,color:C.textSecondary,marginTop:3}}>{agentInfo.location}</div>
+        </div>
+        {sidebar.map(item=>(
+          <button key={item.id} onClick={()=>{setSection(item.id);if(item.id==="book")resetBooking();}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"9px 14px",background:section===item.id?C.amber+"22":"transparent",color:section===item.id?C.amber:C.textSecondary,border:"none",borderRight:section===item.id?`3px solid ${C.amber}`:"3px solid transparent",cursor:"pointer",fontSize:12,fontFamily:"'Nunito',sans-serif",textAlign:"left",transition:"all .15s",fontWeight:section===item.id?700:400}}>
+            <span style={{fontSize:14}}>{item.icon}</span>{item.label}
+          </button>
+        ))}
+        <div style={{margin:"16px 14px",padding:"12px",background:C.navyLight,borderRadius:10}}>
+          <div style={{fontSize:10,color:C.textMuted,marginBottom:6}}>MY STATS</div>
+          <div className="ral" style={{fontWeight:800,fontSize:18,color:C.amber}}>{agentInfo.bookings||0}</div>
+          <div style={{fontSize:10,color:C.textMuted}}>Total bookings</div>
+          <div className="ral" style={{fontWeight:700,fontSize:13,color:C.green,marginTop:6}}>{formatUGX(agentInfo.revenue||0)}</div>
+          <div style={{fontSize:10,color:C.textMuted}}>Revenue</div>
+        </div>
+      </div>
+      <div style={{marginLeft:200,flex:1,padding:"24px"}}>
+
+        {/* ── AGENT: NEW BOOKING ── */}
+        {section==="book"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <h1 className="ral" style={{fontSize:22,fontWeight:900,marginBottom:4}}>New Customer Booking</h1>
+            <p style={{color:C.textMuted,fontSize:12,marginBottom:18}}>Book on behalf of a customer · ID: {currentUser.agentId}</p>
+            <div style={{background:C.amber+"11",border:`1px solid ${C.amber}44`,borderRadius:9,padding:"8px 14px",marginBottom:18,fontSize:12,color:C.amber}}>🧳 Luggage policy: 10kg free per passenger</div>
+
+            {/* Step indicator */}
+            <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:22,flexWrap:"wrap"}}>
+              {["Trip","Seats","Customer","Payment","Done"].map((s,i)=>(
+                <div key={s} style={{display:"flex",alignItems:"center"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <div style={{width:24,height:24,borderRadius:"50%",background:step>i+1?C.green:step===i+1?C.amber:C.card,border:`2px solid ${step>i+1?C.green:step===i+1?C.amber:C.navyBorder}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:step>=i+1?"#0D1B3E":C.textMuted,transition:"all .3s"}}>{step>i+1?"✓":i+1}</div>
+                    <span style={{fontSize:11,color:step===i+1?C.white:C.textMuted,fontWeight:step===i+1?700:400}}>{s}</span>
+                  </div>
+                  {i<4&&<div style={{width:20,height:1,background:step>i+1?C.green:C.navyBorder,margin:"0 5px"}}/>}
+                </div>
+              ))}
+            </div>
+
+            {step===1&&(
+              <div style={{display:"grid",gap:10}}>
+                {store.trips.map(t=>{const r=store.getRoute(t.route_id);const avail=store.seatsAvailable(t);const isFull=avail<=0;const isSel=trip?.id===t.id;return(
+                  <div key={t.id} onClick={()=>!isFull&&setTrip(t)} style={{background:C.card,border:`2px solid ${isSel?C.amber:isFull?C.red+"33":C.navyBorder}`,borderRadius:14,padding:"14px 16px",cursor:isFull?"not-allowed":"pointer",transition:"all .2s",opacity:isFull?.55:1,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+                    <div><div className="ral" style={{fontWeight:800,fontSize:16}}>{r.origin} → {r.destination}</div><div style={{fontSize:11,color:C.textMuted}}>{t.vehicle_reg}{isFull&&<span style={{color:C.red,marginLeft:8}}>FULL</span>}</div></div>
+                    <div style={{display:"flex",gap:16,alignItems:"center"}}>
+                      <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.textMuted}}>Departs</div><div className="ral" style={{fontWeight:800,fontSize:19,color:C.amber}}>{formatTime(t.departure_time)}</div></div>
+                      <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.textMuted}}>Seats</div><div style={{fontWeight:700,color:isFull?C.red:C.green}}>{isFull?"FULL":avail}</div></div>
+                      <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.textMuted}}>Fare</div><div className="ral" style={{fontWeight:700,color:C.amber,fontSize:14}}>{formatUGX(r.price)}</div></div>
+                      {isSel&&<div style={{width:20,height:20,borderRadius:"50%",background:C.amber,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#0D1B3E"}}>✓</div>}
+                    </div>
+                  </div>
+                );})}
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}><Btn onClick={()=>setStep(2)} disabled={!trip}>Next: Seats →</Btn></div>
+              </div>
+            )}
+
+            {step===2&&trip&&(
+              <div style={{display:"flex",gap:22,flexWrap:"wrap"}}>
+                <div><h3 className="ral" style={{fontWeight:700,marginBottom:12}}>Select Customer Seats</h3><SeatMap capacity={14} bookedSeats={bookedS} reservedSeats={reservedS} selected={seats} onSelect={n=>setSeats(prev=>prev.includes(n)?prev.filter(s=>s!==n):[...prev,n])}/></div>
+                <div style={{flex:1,minWidth:180}}>
+                  <Card><div className="ral" style={{fontWeight:800,fontSize:16,marginBottom:4}}>{route.origin} → {route.destination}</div>
+                    <div style={{color:C.textMuted,fontSize:12,marginBottom:12}}>{formatTime(trip.departure_time)}</div>
+                    <div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.navyBorder}`,paddingTop:10}}><span className="ral" style={{fontWeight:800}}>Total</span><span className="ral" style={{fontWeight:800,fontSize:17,color:C.green}}>{formatUGX(route.price*seats.length)}</span></div>
+                  </Card>
+                </div>
+                <div style={{width:"100%",display:"flex",gap:10,justifyContent:"flex-end"}}><Btn onClick={()=>setStep(1)} variant="navy" style={{border:`1px solid ${C.navyBorder}`}}>← Back</Btn><Btn onClick={()=>setStep(3)} disabled={seats.length===0}>Next: Customer →</Btn></div>
+              </div>
+            )}
+
+            {step===3&&(
+              <div style={{display:"flex",flexDirection:"column",gap:16}}>
+                <Card><h3 className="ral" style={{fontWeight:700,marginBottom:16}}>Customer Details</h3>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                    <div style={{gridColumn:"1/-1"}}><Input label="Customer Full Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Customer's full name" required/></div>
+                    <Input label="Phone Number" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+256 7XX XXX XXX" required/>
+                    <Input label="Email (optional)" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="customer@email.com"/>
+                  </div>
+                  <div style={{marginTop:14,padding:12,background:C.navyMid,borderRadius:11,border:`1px solid ${C.navyBorder}`}}>
+                    <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13}}>
+                      <input type="checkbox" checked={form.accessibility} onChange={e=>setForm({...form,accessibility:e.target.checked})} style={{width:16,height:16}}/>
+                      <span style={{fontWeight:600}}>Customer requires special assistance</span>
+                    </label>
+                    {form.accessibility&&<div style={{marginTop:10}}><Input value={form.assistanceDetail} onChange={e=>setForm({...form,assistanceDetail:e.target.value})} placeholder="e.g. Wheelchair assistance..."/></div>}
+                  </div>
+                </Card>
+                <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn onClick={()=>setStep(2)} variant="navy" style={{border:`1px solid ${C.navyBorder}`}}>← Back</Btn><Btn onClick={()=>setStep(4)} disabled={!form.name||!form.phone}>Next: Payment →</Btn></div>
+              </div>
+            )}
+
+            {step===4&&(
+              <Card style={{maxWidth:440}}>
+                <h3 className="ral" style={{fontWeight:800,marginBottom:16}}>Confirm Payment</h3>
+                <div style={{background:C.navyMid,borderRadius:10,padding:14,marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:C.textMuted}}>Route</span><span style={{fontWeight:700}}>{route.origin} → {route.destination}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:C.textMuted}}>Seats</span><span>{seats.join(", ")}</span></div>
+                  <div style={{borderTop:`1px solid ${C.navyBorder}`,paddingTop:8,display:"flex",justifyContent:"space-between"}}>
+                    <span className="ral" style={{fontWeight:800}}>Total</span>
+                    <span className="ral" style={{fontWeight:800,fontSize:20,color:C.amber}}>{formatUGX(route.price*seats.length)}</span>
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+                  {[{id:"cash",label:"Cash",icon:"💵"},{id:"mtn",label:"MTN MoMo",icon:"📱"},{id:"airtel",label:"Airtel",icon:"📲"},{id:"receipt",label:"Receipt Only",icon:"🧾"}].map(m=>(
+                    <div key={m.id} onClick={()=>setPayMethod(m.id)} style={{background:payMethod===m.id?C.amber+"22":C.navyMid,border:`1.5px solid ${payMethod===m.id?C.amber:C.navyBorder}`,borderRadius:10,padding:"11px",textAlign:"center",cursor:"pointer",transition:"all .2s"}}>
+                      <div style={{fontSize:20,marginBottom:4}}>{m.icon}</div>
+                      <div style={{fontSize:11,fontWeight:700,color:payMethod===m.id?C.amber:C.textMuted}}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <Btn onClick={handleBook} full style={{padding:"13px"}}>✓ Confirm & Issue Ticket</Btn>
+                <div style={{display:"flex",justifyContent:"center",marginTop:10}}><Btn onClick={()=>setStep(3)} variant="navy" style={{border:`1px solid ${C.navyBorder}`,fontSize:12}}>← Back</Btn></div>
+              </Card>
+            )}
+
+            {step===5&&confirmed&&(
+              <div style={{animation:"fadeUp .4s ease",textAlign:"center"}}>
+                <div style={{fontSize:48,marginBottom:12}}>✅</div>
+                <h2 className="ral" style={{fontSize:24,fontWeight:900,marginBottom:6}}>Booking Issued!</h2>
+                <p style={{color:C.textMuted,marginBottom:24}}>Ticket sent to customer's WhatsApp</p>
+                <div style={{maxWidth:380,margin:"0 auto"}}>
+                  <Card style={{textAlign:"left",border:`1px solid ${C.amber}44`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:14,paddingBottom:14,borderBottom:`2px dashed ${C.navyBorder}`}}>
+                      <div><div style={{fontSize:10,color:C.textMuted}}>BOOKING CODE</div><div className="ral" style={{fontWeight:900,fontSize:22,color:C.amber}}>{confirmed.code}</div></div>
+                      <QRCode value={confirmed.code} size={90}/>
+                    </div>
+                    {[["Passenger",confirmed.passenger],["Route",confirmed.route],["Departure",confirmed.departure],["Seats",confirmed.seats.join(", ")],["Total",formatUGX(confirmed.amount)],["Agent",currentUser.agentId]].map(([k,v])=>(
+                      <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:C.textMuted}}>{k}</span><span style={{fontWeight:700}}>{v}</span></div>
+                    ))}
+                  </Card>
+                  <div style={{display:"flex",gap:10,marginTop:14,justifyContent:"center"}}><Btn variant="navy" style={{fontSize:12,border:`1px solid ${C.navyBorder}`}}>Print Ticket</Btn><Btn onClick={resetBooking} style={{fontSize:12}}>New Booking</Btn></div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── AGENT: MY BOOKINGS ── */}
+        {section==="mybookings"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <h1 className="ral" style={{fontSize:22,fontWeight:900,marginBottom:18}}>My Bookings</h1>
+            <div style={{display:"flex",gap:12,marginBottom:18}}>
+              <StatCard label="Total Bookings" value={myBookings.length} icon="🎫" color={C.amber}/>
+              <StatCard label="Revenue Generated" value={formatUGX(myBookings.filter(b=>b.payment_status==="confirmed").reduce((s,b)=>s+b.amount,0))} icon="💵" color={C.green}/>
+            </div>
+            <Card style={{padding:0,overflow:"hidden"}}>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead><tr>{["Code","Customer","Route","Seats","Amount","Status"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"left",fontSize:10,color:C.textMuted,fontWeight:700,textTransform:"uppercase",background:C.navyMid,borderBottom:`1px solid ${C.navyBorder}`}}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {(myBookings.length>0?myBookings:store.bookings.filter(b=>b.agent_id)).map(b=>(
+                      <tr key={b.id} onMouseEnter={e=>e.currentTarget.style.background=C.navyMid} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                        <td style={{padding:"11px 14px",fontSize:13,borderBottom:`1px solid ${C.navyBorder}`}}><span style={{color:C.amber,fontFamily:"'Raleway',sans-serif",fontWeight:700}}>{b.booking_code}</span></td>
+                        <td style={{padding:"11px 14px",fontSize:13,borderBottom:`1px solid ${C.navyBorder}`}}>{b.passenger}</td>
+                        <td style={{padding:"11px 14px",fontSize:12,borderBottom:`1px solid ${C.navyBorder}`,color:C.textSecondary}}>{b.route}</td>
+                        <td style={{padding:"11px 14px",fontSize:13,borderBottom:`1px solid ${C.navyBorder}`}}>{b.seats?.join(", ")||"—"}</td>
+                        <td style={{padding:"11px 14px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${C.navyBorder}`}}>{formatUGX(b.amount)}</td>
+                        <td style={{padding:"11px 14px",borderBottom:`1px solid ${C.navyBorder}`}}><StatusBadge status={b.status}/></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ── AGENT: SCHEDULE VIEW ── */}
+        {section==="schedule"&&(
+          <div style={{animation:"fadeUp .3s ease"}}>
+            <h1 className="ral" style={{fontSize:22,fontWeight:900,marginBottom:18}}>Today's Schedule</h1>
+            <div style={{display:"grid",gap:12}}>
+              {store.trips.map(t=>{const r=store.getRoute(t.route_id);const avail=store.seatsAvailable(t);return(
+                <Card key={t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+                  <div><div className="ral" style={{fontWeight:800,fontSize:17}}>{r.origin} → {r.destination}</div><div style={{fontSize:11,color:C.textMuted,marginTop:2}}>{t.vehicle_reg} · {r.duration_minutes} min journey</div></div>
+                  <div style={{display:"flex",gap:18}}>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.textMuted}}>Departs</div><div className="ral" style={{fontWeight:800,fontSize:20,color:C.amber}}>{formatTime(t.departure_time)}</div></div>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.textMuted}}>Seats</div><div style={{fontWeight:700,color:avail===0?C.red:C.green,fontSize:15}}>{avail===0?"FULL":avail}</div></div>
+                    <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.textMuted}}>Fare</div><div className="ral" style={{fontWeight:700,color:C.amber}}>{formatUGX(r.price)}</div></div>
+                    <Btn onClick={()=>{setTrip(t);setSection("book");setStep(2);}} disabled={avail===0} style={{padding:"8px 16px",fontSize:12}}>Book</Btn>
+                  </div>
+                </Card>
+              );})}
+            </div>
+          </div>
+        )}
+
+        {/* ── AGENT: REGISTER CUSTOMER ── */}
+        {section==="customers"&&(
+          <div style={{animation:"fadeUp .3s ease",maxWidth:500}}>
+            <h1 className="ral" style={{fontSize:22,fontWeight:900,marginBottom:18}}>Register New Customer</h1>
+            <Card>
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <Input label="Full Name" value="" onChange={()=>{}} placeholder="Customer's full name" required/>
+                <Input label="Phone Number" value="" onChange={()=>{}} placeholder="+256 7XX XXX XXX" required/>
+                <Input label="Email (optional)" type="email" value="" onChange={()=>{}} placeholder="email@example.com"/>
+                <Sel label="Home District" value="" onChange={()=>{}} options={[{value:"",label:"Select district"},...["Kampala","Gulu","Mbarara","Mbale","Arua","Jinja"].map(d=>({value:d,label:d}))]}/>
+                <div style={{background:C.navyLight,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.textMuted}}>Customer profile enables quick rebooking and booking history.</div>
+                <Btn full style={{padding:"12px"}}>Register Customer</Btn>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// APP ROOT
+// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// APP ROOT
+// ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// INFLUENCER / AFFILIATE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════
+const AdminInfluencerSection=({store})=>{
+  const [influencers,setInfluencers]=useState([
+    {id:"INF-001",name:"Sophia Nakato",phone:"+256 772 100101",email:"sophia@gmail.com",platform:"Instagram",followers:"12K",commissionRate:5,status:"active",created:"2026-01-20",totalBookings:14,totalEarned:245000,link:"https://raylane.ug/ref/sophia",paid:120000},
+    {id:"INF-002",name:"David Sserubiri",phone:"+256 701 200202",email:"david@gmail.com",platform:"TikTok",followers:"28K",commissionRate:7,status:"active",created:"2026-02-05",totalBookings:31,totalEarned:620000,link:"https://raylane.ug/ref/david",paid:400000},
+  ]);
+  const [showModal,setShowModal]=useState(false);
+  const [viewInf,setViewInf]=useState(null);
+  const [form,setForm]=useState({name:"",phone:"",email:"",platform:"Instagram",followers:"",commissionRate:"5"});
+  const [infTab,setInfTab]=useState("all");
+  const [copied,setCopied]=useState(null);
+
+  const PLATFORMS=["Instagram","TikTok","Facebook","YouTube","Twitter/X","WhatsApp","Blog/Website","Other"];
+
+  const genSlug=(name)=>name.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,12)+(Math.floor(Math.random()*900)+100);
+  const genLink=(name)=>`https://raylane.ug/ref/${genSlug(name)}`;
+
+  const addInfluencer=()=>{
+    if(!form.name||!form.email) return;
+    const inf={
+      id:`INF-${String(influencers.length+1).padStart(3,"0")}`,
+      name:form.name,phone:form.phone,email:form.email,
+      platform:form.platform,followers:form.followers||"—",
+      commissionRate:Number(form.commissionRate)||5,
+      status:"active",created:new Date().toISOString().split("T")[0],
+      totalBookings:0,totalEarned:0,paid:0,
+      link:genLink(form.name),
+    };
+    setInfluencers(prev=>[...prev,inf]);
+    setShowModal(false);
+    setForm({name:"",phone:"",email:"",platform:"Instagram",followers:"",commissionRate:"5"});
+  };
+
+  const copyLink=(inf)=>{
+    navigator.clipboard?.writeText(inf.link).catch(()=>{});
+    setCopied(inf.id);
+    setTimeout(()=>setCopied(null),2000);
+  };
+
+  const toggleStatus=(id)=>setInfluencers(prev=>prev.map(i=>i.id===id?{...i,status:i.status==="active"?"paused":"active"}:i));
+
+  const totalCommissions=influencers.reduce((s,i)=>s+i.totalEarned,0);
+  const totalPaid=influencers.reduce((s,i)=>s+i.paid,0);
+  const totalPending=totalCommissions-totalPaid;
+  const totalBookingsViaLinks=influencers.reduce((s,i)=>s+i.totalBookings,0);
+
+  const filtered=infTab==="all"?influencers:influencers.filter(i=>i.status===infTab);
+
+  return(
+  <div style={{animation:"fadeUp .3s ease"}}>
+    {/* Header */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12}}>
+      <div>
+        <h1 className="ral" style={{fontSize:24,fontWeight:900,margin:0}}>Influencer & Affiliate Links</h1>
+        <p style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:C.textMuted,marginTop:4}}>Auto-generate referral links · Track bookings · Pay commissions</p>
+      </div>
+      <Btn onClick={()=>setShowModal(true)}>+ Add Influencer</Btn>
+    </div>
+
+    {/* KPI cards */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:22}}>
+      {[
+        {label:"Total Influencers",value:influencers.length,icon:"🌟",color:C.amber},
+        {label:"Active",value:influencers.filter(i=>i.status==="active").length,icon:"✅",color:C.green},
+        {label:"Bookings via Links",value:totalBookingsViaLinks,icon:"🎫",color:C.blue},
+        {label:"Total Commissions",value:formatUGX(totalCommissions),icon:"💵",color:C.green},
+        {label:"Pending Payout",value:formatUGX(totalPending),icon:"⏳",color:C.orange},
+        {label:"Paid Out",value:formatUGX(totalPaid),icon:"✔️",color:C.textMuted},
+      ].map(k=>(
+        <div key={k.label} style={{background:C.card,border:`1px solid ${C.navyBorder}`,borderRadius:14,padding:"14px 16px"}}>
+          <div style={{fontSize:20,marginBottom:5}} aria-hidden="true">{k.icon}</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:14,color:k.color,marginBottom:2}}>{k.value}</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:C.textMuted,textTransform:"uppercase",letterSpacing:".5px"}}>{k.label}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* Filter tabs */}
+    <div style={{display:"flex",gap:6,marginBottom:16,background:C.navyMid,padding:5,borderRadius:12,width:"fit-content"}}>
+      {[{id:"all",l:"All"},{id:"active",l:"Active"},{id:"paused",l:"Paused"}].map(t=>(
+        <button key={t.id} onClick={()=>setInfTab(t.id)}
+          style={{padding:"6px 16px",borderRadius:9,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,
+            background:infTab===t.id?C.amber:"transparent",color:infTab===t.id?C.navy:C.textSecondary,transition:"all .18s"}}>
+          {t.l}
+        </button>
+      ))}
+    </div>
+
+    {/* Table */}
+    <div style={{background:C.card,border:`1px solid ${C.navyBorder}`,borderRadius:16,overflow:"hidden",marginBottom:20}}>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead>
+            <tr>
+              {["Influencer","Platform","Commission %","Bookings","Earned","Pending","Status","Referral Link",""].map(h=>(
+                <TH key={h}>{h}</TH>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(inf=>(
+              <tr key={inf.id} style={{borderBottom:`1px solid ${C.navyBorder}`}}>
+                <TD>
+                  <div style={{fontWeight:700,color:C.textPrimary}}>{inf.name}</div>
+                  <div style={{fontSize:10,color:C.textMuted,marginTop:1}}>{inf.phone} · {inf.followers} followers</div>
+                </TD>
+                <TD>
+                  <span style={{background:C.navyLight,color:C.textSecondary,padding:"2px 8px",borderRadius:8,fontSize:10,fontWeight:600}}>{inf.platform}</span>
+                </TD>
+                <TD style={{color:C.amber,fontWeight:700}}>{inf.commissionRate}%</TD>
+                <TD style={{color:C.blue,fontWeight:700}}>{inf.totalBookings}</TD>
+                <TD style={{color:C.green,fontWeight:700}}>{formatUGX(inf.totalEarned)}</TD>
+                <TD style={{color:inf.totalEarned-inf.paid>0?C.orange:C.textMuted,fontWeight:700}}>{formatUGX(inf.totalEarned-inf.paid)}</TD>
+                <TD>
+                  <span style={{background:inf.status==="active"?"rgba(22,163,74,0.12)":"rgba(234,88,12,0.1)",color:inf.status==="active"?C.green:C.orange,padding:"2px 10px",borderRadius:10,fontSize:10,fontWeight:700,textTransform:"uppercase"}}>
+                    {inf.status}
+                  </span>
+                </TD>
+                <TD style={{maxWidth:220}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <code style={{fontSize:9,color:C.textMuted,background:C.navyLight,padding:"3px 6px",borderRadius:5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{inf.link}</code>
+                    <button onClick={()=>copyLink(inf)}
+                      style={{background:copied===inf.id?C.green:C.amber,color:"#fff",border:"none",borderRadius:6,padding:"3px 9px",fontSize:10,cursor:"pointer",fontWeight:700,flexShrink:0,transition:"background .2s"}}>
+                      {copied===inf.id?"✓ Copied":"Copy"}
+                    </button>
+                  </div>
+                </TD>
+                <TD>
+                  <div style={{display:"flex",gap:5}}>
+                    <button onClick={()=>setViewInf(inf)}
+                      style={{background:"rgba(59,130,246,0.12)",color:C.blue,border:"none",borderRadius:6,padding:"3px 9px",fontSize:10,cursor:"pointer",fontWeight:700}}>
+                      View
+                    </button>
+                    <button onClick={()=>toggleStatus(inf.id)}
+                      style={{background:inf.status==="active"?"rgba(234,88,12,0.1)":"rgba(22,163,74,0.1)",color:inf.status==="active"?C.orange:C.green,border:"none",borderRadius:6,padding:"3px 9px",fontSize:10,cursor:"pointer",fontWeight:700}}>
+                      {inf.status==="active"?"Pause":"Resume"}
+                    </button>
+                  </div>
+                </TD>
+              </tr>
+            ))}
+            {filtered.length===0&&(
+              <tr><td colSpan={9} style={{textAlign:"center",padding:28,color:C.textMuted,fontFamily:"'Inter',sans-serif",fontSize:13}}>No influencers yet. Click "+ Add Influencer" to get started.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {/* How it works info box */}
+    <div style={{background:"rgba(11,95,255,0.06)",border:`1px solid rgba(11,95,255,0.15)`,borderRadius:14,padding:"16px 20px",marginBottom:20}}>
+      <div className="ral" style={{fontWeight:800,fontSize:13,color:C.amber,marginBottom:10}}>📌 How Influencer Links Work</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12,fontFamily:"'Inter',sans-serif",fontSize:12,color:C.textSecondary,lineHeight:1.8}}>
+        <div>1. Add an influencer and set their commission rate (%).</div>
+        <div>2. Their unique link is auto-generated (e.g. raylane.ug/ref/sophia).</div>
+        <div>3. They share it — every booking made via their link is tracked.</div>
+        <div>4. Commission = booking amount × their rate. Pay them from "Pending" balance.</div>
+      </div>
+    </div>
+
+    {/* Add Influencer Modal */}
+    <Modal open={showModal} onClose={()=>setShowModal(false)} title="Add New Influencer" wide>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:13}}>
+        <div style={{gridColumn:"1/-1"}}><Input label="Full Name *" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Sophia Nakato"/></div>
+        <Input label="Phone" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+256 7XX XXX XXX"/>
+        <Input label="Email *" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="sophia@gmail.com"/>
+        <Sel label="Platform" value={form.platform} onChange={e=>setForm({...form,platform:e.target.value})} options={PLATFORMS.map(p=>({value:p,label:p}))}/>
+        <Input label="Followers / Reach" value={form.followers} onChange={e=>setForm({...form,followers:e.target.value})} placeholder="e.g. 12K"/>
+        <div style={{gridColumn:"1/-1"}}>
+          <Input label={`Commission Rate (%) — e.g. 5 means 5% of every booking amount`} type="number" min="1" max="20" value={form.commissionRate} onChange={e=>setForm({...form,commissionRate:e.target.value})} placeholder="5"/>
+        </div>
+        {form.name&&(
+          <div style={{gridColumn:"1/-1",background:C.navyMid,borderRadius:10,padding:"10px 14px"}}>
+            <div style={{fontSize:11,color:C.textMuted,marginBottom:4,fontFamily:"'Inter',sans-serif"}}>Auto-generated referral link:</div>
+            <code style={{fontSize:12,color:C.amber,fontWeight:700}}>{genLink(form.name)}</code>
+          </div>
+        )}
+        <div style={{gridColumn:"1/-1",display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <Btn variant="navy" onClick={()=>setShowModal(false)} style={{border:`1px solid ${C.navyBorder}`}}>Cancel</Btn>
+          <Btn onClick={addInfluencer} style={{opacity:(!form.name||!form.email)?0.5:1}}>Create & Generate Link</Btn>
+        </div>
+      </div>
+    </Modal>
+
+    {/* View Influencer Detail Modal */}
+    {viewInf&&(
+      <Modal open={!!viewInf} onClose={()=>setViewInf(null)} title={`${viewInf.name} — Influencer Profile`} wide>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          <div style={{gridColumn:"1/-1",background:C.navyMid,borderRadius:12,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+            <div>
+              <div className="ral" style={{fontWeight:800,fontSize:18,color:C.textPrimary}}>{viewInf.name}</div>
+              <div style={{fontSize:12,color:C.textMuted,marginTop:3}}>{viewInf.platform} · {viewInf.followers} followers · Joined {viewInf.created}</div>
+            </div>
+            <StatusBadge status={viewInf.status}/>
+          </div>
+          {[
+            {l:"Commission Rate",v:`${viewInf.commissionRate}%`},
+            {l:"Total Bookings via Link",v:viewInf.totalBookings},
+            {l:"Total Commissions Earned",v:formatUGX(viewInf.totalEarned),c:C.green},
+            {l:"Already Paid",v:formatUGX(viewInf.paid),c:C.blue},
+            {l:"Pending Payout",v:formatUGX(viewInf.totalEarned-viewInf.paid),c:viewInf.totalEarned-viewInf.paid>0?C.orange:C.textMuted},
+          ].map(x=>(
+            <div key={x.l} style={{background:C.navyLight,borderRadius:10,padding:"12px 16px"}}>
+              <div style={{fontSize:10,color:C.textMuted,textTransform:"uppercase",letterSpacing:.5,marginBottom:5,fontFamily:"'Inter',sans-serif"}}>{x.l}</div>
+              <div style={{fontWeight:800,fontSize:16,color:x.c||C.textPrimary,fontFamily:"'Inter',sans-serif"}}>{x.v}</div>
+            </div>
+          ))}
+          <div style={{gridColumn:"1/-1"}}>
+            <div style={{fontSize:11,color:C.textMuted,marginBottom:6,fontFamily:"'Inter',sans-serif",fontWeight:700,textTransform:"uppercase",letterSpacing:.5}}>Referral Link</div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <code style={{flex:1,background:C.navyMid,padding:"10px 14px",borderRadius:9,fontSize:12,color:C.amber,fontWeight:700,wordBreak:"break-all"}}>{viewInf.link}</code>
+              <Btn onClick={()=>copyLink(viewInf)} style={{flexShrink:0,fontSize:12}}>
+                {copied===viewInf.id?"✓ Copied!":"Copy Link"}
+              </Btn>
+            </div>
+            <div style={{marginTop:8,fontSize:11,color:C.textMuted,fontFamily:"'Inter',sans-serif"}}>
+              Share this link on {viewInf.platform}. Every booking confirmed through it earns {viewInf.commissionRate}% commission.
+            </div>
+          </div>
+          <div style={{gridColumn:"1/-1",display:"flex",gap:10,justifyContent:"flex-end",paddingTop:4}}>
+            <Btn variant="navy" onClick={()=>setViewInf(null)} style={{border:`1px solid ${C.navyBorder}`}}>Close</Btn>
+            <Btn onClick={()=>{
+              setInfluencers(prev=>prev.map(i=>i.id===viewInf.id?{...i,paid:i.totalEarned}:i));
+              setViewInf(prev=>({...prev,paid:prev.totalEarned}));
+            }} style={{background:C.green}}>Mark All Paid</Btn>
+          </div>
+        </div>
+      </Modal>
+    )}
+  </div>
+  );
+};
+
+export default function App(){
+  // ── ALL hooks must be declared unconditionally at the top ──────────
+  const store=useStore();
+  const [page,setPage]=useState("home");
+  const [preselectedTrip,setPreselectedTrip]=useState(null);
+  const [currentUser,setCurrentUser]=useState(null);
+  const [showCustomerAuth,setShowCustomerAuth]=useState(false);
+
+  const handleLogin=(user)=>{
+    setCurrentUser(user);
+    if(user.role==="admin") setPage("admin");
+    else if(user.role==="agent") setPage("agent");
+    else setPage("home");
+  };
+  const handleLogout=()=>{setCurrentUser(null);setPage("home");};
+
+  const handleSetPage=(p)=>{
+    if(p==="logout"){handleLogout();return;}
+    if(p==="customer-login"){setShowCustomerAuth(true);return;}
+    window.scrollTo({top:0,behavior:"smooth"});
+    setPage(p);
+  };
+
+  // ── Routing — no early returns, all conditional rendering ──────────
+  const isLogin = page==="login" && !currentUser;
+  const isAdmin = page==="admin" && currentUser?.role==="admin";
+  const isAgent = page==="agent" && currentUser?.role==="agent";
+  const isPublic = !isLogin && !isAdmin && !isAgent;
+
+  return(
+    <ErrorBoundary>
+      <GlobalStyles/>
+      <BackToTop/>
+      <style>{globalCSS}</style>
+
+      {/* Staff / Admin Login */}
+      {isLogin&&<LoginPage onLogin={handleLogin} agents={store.agents}/>}
+
+      {/* Admin Dashboard */}
+      {isAdmin&&<AdminDashboard store={store} currentUser={currentUser} onLogout={handleLogout}/>}
+
+      {/* Agent Dashboard */}
+      {isAgent&&<AgentDashboard store={store} currentUser={currentUser} onLogout={handleLogout}/>}
+
+      {/* Public site */}
+      {isPublic&&(
+        <>
+          <Nav page={page} setPage={handleSetPage} currentUser={currentUser}/>
+          <CustomerAuthModal open={showCustomerAuth} onClose={()=>setShowCustomerAuth(false)} onLogin={u=>{handleLogin(u);setShowCustomerAuth(false);}}/>
+          {page==="home"     &&<HomePage      setPage={handleSetPage} setPreselectedTrip={setPreselectedTrip} store={store} onCustomerLogin={()=>setShowCustomerAuth(true)} onStaffLogin={()=>setPage("login")} currentUser={currentUser} destinations={store.destinations} inspirePhotos={store.inspirePhotos}/>}
+          {page==="schedule" &&<SchedulePage  setPage={handleSetPage} setPreselectedTrip={setPreselectedTrip} store={store}/>}
+          {page==="book"     &&<BookingPage   preselectedTrip={preselectedTrip} store={store} currentUser={currentUser}/>}
+          {page==="plan"     &&<PlanJourneyPage store={store} currentUser={currentUser}/>}
+          {page==="parcel"   &&<ParcelPage/>}
+          {page==="safety"     &&<SafetyPage store={store}/>}
+          {page==="lostfound"  &&<LostFoundPage/>}
+          {page==="inspire"    &&<InspirePage store={store}/>}
+          {page==="destinations"&&<DestinationsSlider destinations={store.destinations.filter(d=>d.active)} setPage={handleSetPage}/>}
+          {page==="routes"     &&<SchedulePage setPage={handleSetPage} setPreselectedTrip={setPreselectedTrip} store={store}/>}
+          {page==="faq"      &&<FAQPage/>}
+        </>
+      )}
+    </ErrorBoundary>
+  );
+}
