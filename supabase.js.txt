@@ -1,0 +1,26 @@
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl  = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey  = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+export const supabase = createClient(supabaseUrl, supabaseKey)
+```
+
+7. Press **Ctrl + S** to save
+
+8. Close Notepad
+
+---
+
+## Then — Create the .env File
+
+In the **same folder**, create another new text file:
+
+1. Right-click empty space → **New → Text Document**
+2. Name it exactly `.env` (just dot-env, nothing else)
+   > Windows might warn you about changing the extension — click **Yes**
+3. Open it with Notepad
+4. Paste this — **replacing with your actual values from Supabase:**
+```
+VITE_SUPABASE_URL=https://xyvijskzgpgauhrxcauw.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5dmlqc2t6Z3BnYXVocnhjYXV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5OTc5NjksImV4cCI6MjA4NzU3Mzk2OX0.FOjha5TvyDW6ozvWt8aEmbXTVbk5NtY1Vd_I2kXuHtM
