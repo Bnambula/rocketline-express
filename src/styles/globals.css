@@ -272,3 +272,66 @@ input, select { font-family: var(--font-body); outline: none; }
 }
 .mobile-nav-item.active, .mobile-nav-item:hover { color: var(--blue); }
 .mobile-nav-item.active svg { stroke: var(--blue); }
+
+/* ═══════════════════════════════════════════
+   MOBILE FIRST — BOOKING FLOW & SEAT MAPS
+═══════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* Booking flow: stack panels */
+  .booking-grid { grid-template-columns: 1fr !important; }
+
+  /* Seat map: make horizontally scrollable */
+  .seatmap-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .seatmap-scroll > div { min-width: 480px; }
+
+  /* Admin/Operator dashboards: collapse sidebar logic handled in-component */
+}
+
+@media (max-width: 640px) {
+  /* Hero search box stacks */
+  .hero-search-grid { grid-template-columns: 1fr !important; }
+
+  /* Vehicle type selector: 2 col */
+  .vehicle-type-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Step bar: hide labels on very small */
+  .step-label { display: none !important; }
+
+  /* Trip cards: single column */
+  .trip-card-grid { grid-template-columns: 1fr !important; }
+
+  /* Dashboard stats: 2-col */
+  .stat-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Admin/Operator layout: stack vertically */
+  .dash-layout { flex-direction: column !important; height: auto !important; }
+  .dash-sidebar { width: 100% !important; height: auto !important; flex-direction: row !important; overflow-x: auto !important; }
+  .dash-sidebar nav { display: flex !important; flex-direction: row !important; padding: 4px 8px !important; }
+  .dash-sidebar nav button { flex-direction: column !important; padding: 8px 10px !important; font-size: 10px !important; border-left: none !important; border-bottom: 3px solid transparent !important; }
+
+  /* Seat info panel + map: stacked */
+  .seat-layout { grid-template-columns: 1fr !important; }
+
+  /* Footer: single column */
+  .footer-grid { grid-template-columns: 1fr !important; }
+
+  /* Where We Go: single column */
+  .where-grid { grid-template-columns: 1fr !important; }
+
+  /* Padding bottom for mobile nav */
+  main { padding-bottom: 72px !important; }
+}
+
+/* Touch-optimised seat tap targets */
+@media (hover: none) and (pointer: coarse) {
+  /* Enlarge tap area on mobile */
+  .seat-cell {
+    min-width: 36px !important;
+    min-height: 40px !important;
+  }
+}
+
+/* Safe area for notched phones */
+.mobile-nav {
+  padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+}
