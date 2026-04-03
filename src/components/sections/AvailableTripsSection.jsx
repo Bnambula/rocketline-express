@@ -17,7 +17,7 @@ export default function AvailableTripsSection() {
   })
 
   return (
-    <section style={{ background:'var(--gray-light)', padding:'80px 0' }}>
+    <section id='available-trips' style={{ background:'var(--gray-light)', padding:'80px 0' }}>
       <div className="container">
         <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:32, flexWrap:'wrap', gap:16 }}>
           <div>

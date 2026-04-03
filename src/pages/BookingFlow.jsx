@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { operators } from '../data'
-import { Coach55, Coach65, Coach67, TaxiMatatu, SeatLegend } from '../components/ui/SeatMaps'
+import { BusSeat55, BusSeat65, BusSeat67, TaxiSeat14, SeatLegend, PaymentModule, PaymentSuccess } from '../components/ui/SharedComponents'
 import { useToast } from '../hooks/useToast'
 import Footer from '../components/layout/Footer'
 
@@ -20,11 +20,11 @@ const BOOKED = [3,7,8,11,14,20,21,22,31,35]
 
 /* ── seat map selector ── */
 function SeatMap({ vehicleConfig, booked, selected, onToggle }) {
-  const props = { booked, selected, onToggle }
-  if (vehicleConfig?.seats >= 67) return <Coach67 {...props} />
-  if (vehicleConfig?.seats >= 65) return <Coach65 {...props} />
-  if (vehicleConfig?.seats >= 55) return <Coach55 {...props} />
-  return <TaxiMatatu {...props} />
+  const props = { booked, locked:[], selected, onToggle }
+  if (vehicleConfig?.seats >= 67) return <BusSeat67 {...props} />
+  if (vehicleConfig?.seats >= 65) return <BusSeat65 {...props} />
+  if (vehicleConfig?.seats >= 55) return <BusSeat55 {...props} />
+  return <TaxiSeat14 {...props} />
 }
 
 /* ── lock timer pill ── */
@@ -399,92 +399,19 @@ export default function BookingFlow() {
           </div>
         )}
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            STEP 4: DIGITAL TICKET
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* STEP 4: DIGITAL TICKET */}
         {step === 4 && (
-          <div style={{ maxWidth:520, margin:'0 auto', display:'flex', flexDirection:'column', gap:18 }}>
-            {/* Success */}
-            <div style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', borderRadius:20, padding:28, color:'var(--white)', textAlign:'center' }}>
-              <div style={{ width:64, height:64, borderRadius:'50%', background:'rgba(255,255,255,0.2)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:32 }}>✅</div>
-              <h2 style={{ fontFamily:'var(--font-head)', fontWeight:900, fontSize:22, marginBottom:6 }}>Your Ticket is Confirmed!</h2>
-              <p style={{ opacity:0.9, fontSize:14 }}>Payment of UGX {total.toLocaleString()} received</p>
-              <p style={{ opacity:0.75, fontSize:12, marginTop:4 }}>Booking ID: {ticketId}</p>
-              {useDiffNumber && <p style={{ opacity:0.75, fontSize:12, marginTop:2 }}>📱 Ticket sent to {phone} · Paid from {payPhone}</p>}
-            </div>
-
-            {/* Digital Ticket */}
-            <div style={{ background:'var(--blue)', borderRadius:20, overflow:'hidden', boxShadow:'var(--shadow-xl)' }}>
-              <div style={{ padding:'18px 22px', borderBottom:'2px dashed rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <div style={{ width:38, height:38, borderRadius:10, background:'var(--gold)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--font-head)', fontWeight:900, fontSize:12, color:'var(--blue)' }}>RLX</div>
-                  <div>
-                    <div style={{ fontFamily:'var(--font-head)', fontWeight:900, fontSize:15, color:'var(--white)' }}>RAYLANE EXPRESS</div>
-                    <div style={{ fontSize:10, color:'var(--gold)', letterSpacing:2 }}>DIGITAL TICKET</div>
-                  </div>
-                </div>
-                {/* QR */}
-                <div style={{ width:66, height:66, background:'var(--white)', borderRadius:10, padding:5, display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:1 }}>
-                  {Array.from({length:49}).map((_,i)=>(
-                    <div key={i} style={{ borderRadius:1, background:[0,2,4,7,11,14,16,18,21,28,30,32,34,35,42,44,46,48].includes(i)?'#0B3D91':'white' }}/>
-                  ))}
-                </div>
-              </div>
-              <div style={{ padding:22 }}>
-                <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:11, color:'rgba(255,255,255,0.5)', marginBottom:3 }}>Ticket No.</div>
-                <div style={{ fontFamily:'var(--font-head)', fontWeight:900, fontSize:17, color:'var(--gold)', marginBottom:18 }}>{ticketId}</div>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:18 }}>
-                  <span style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:18, color:'var(--white)' }}>{from}</span>
-                  <div style={{ flex:1, height:1, background:'rgba(255,255,255,0.2)', position:'relative' }}>
-                    <span style={{ position:'absolute', left:'50%', top:'50%', transform:'translate(-50%,-50%)', color:'var(--gold)', fontSize:16 }}>→</span>
-                  </div>
-                  <span style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:18, color:'var(--white)' }}>{to}</span>
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:18 }}>
-                  {[
-                    ['Date', date],
-                    ['Time', selectedOp?.departureTime || '10:00 AM'],
-                    ['Vehicle Reg', selectedOp?.plate || 'UBF 234K'],
-                    ['Operator', selectedOp?.name || 'Global Coaches'],
-                    ['Seat(s)', selectedSeats.join(', ') || '2, 5'],
-                    ['Amount', `UGX ${total.toLocaleString()}`],
-                  ].map(([l,v])=>(
-                    <div key={l}>
-                      <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', fontFamily:'var(--font-head)', marginBottom:3 }}>{l}</div>
-                      <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:14, color:l==='Amount'?'var(--gold)':'var(--white)' }}>
-                        {v} {l==='Amount' && <span style={{ background:'#22c55e', color:'white', fontSize:10, padding:'1px 7px', borderRadius:5, marginLeft:5 }}>PAID</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* Operator contact */}
-                <div style={{ background:'rgba(255,255,255,0.08)', borderRadius:10, padding:'10px 14px', marginBottom:14 }}>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)', marginBottom:3 }}>Operator Contact</div>
-                  <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:13, color:'var(--white)' }}>+256 700 123 456</div>
-                </div>
-                <div style={{ background:'rgba(255,255,255,0.08)', borderRadius:12, padding:'11px 14px', textAlign:'center', fontFamily:'var(--font-head)', fontWeight:700, fontSize:13, color:'rgba(255,255,255,0.8)' }}>
-                  Show this QR code at boarding
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-              {[['⬇️ Download PDF','#dbeafe','#1d4ed8'],['🔗 Share Ticket','#dcfce7','#15803d'],['🖨️ Print Ticket','#fef9c3','#92400e'],['📱 SMS Receipt','#f3e8ff','#7c3aed']].map(([l,bg,c])=>(
-                <button key={l} onClick={()=>toast(`${l} — feature ready for backend integration`,'success')} style={{ padding:'13px 14px', borderRadius:14, background:bg, color:c, border:'none', fontFamily:'var(--font-head)', fontWeight:700, fontSize:13, cursor:'pointer', transition:'all 0.2s' }}
-                  onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'}
-                  onMouseLeave={e=>e.currentTarget.style.transform='none'}>{l}</button>
-              ))}
-            </div>
-
-            <button onClick={() => navigate('/')} style={{ padding:'14px', borderRadius:14, background:'var(--blue)', color:'var(--white)', border:'none', fontFamily:'var(--font-head)', fontWeight:800, fontSize:15, cursor:'pointer' }}>
-              ← Back to Home
-            </button>
+          <div style={{ padding:'0 4px 24px' }}>
+            <PaymentSuccess
+              amount={total}
+              phone={phone}
+              payPhone={useDiffNumber ? payPhone : null}
+              bookingRef={ticketId}
+              route={`${from} → ${to}`}
+              seats={selectedSeats}
+              onDone={() => navigate('/')}
+            />
           </div>
         )}
-      </div>
-      <Footer />
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-    </div>
-  )
-}
+
+      
