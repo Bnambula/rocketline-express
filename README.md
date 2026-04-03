@@ -1,86 +1,98 @@
-# 🚌 Raylane Express (RLX) — MVP
+# 🚌 Raylane Express (RLX) — Full MVP v4
 
-Uganda's first real-time bus & taxi booking platform. Connecting cities, transforming travel.
-
-## 🌐 Live Pages
-
-| Page | Route | Description |
-|------|-------|-------------|
-| Home | `/` | Full landing page with all sections |
-| Book | `/book` | Full booking flow: search → seat → pay → ticket |
-| Parcels | `/parcels` | Send & track parcels |
-| Operator Dashboard | `/operator` | Operator management panel |
-| Admin Dashboard | `/admin` | Full admin control panel |
-| Partner Portal | `/partner` | Operator application form |
+Uganda's first real-time bus & taxi booking platform.
 
 ## 🚀 Deploy to Vercel
 
-### Option 1: Vercel CLI
 ```bash
-npm install -g vercel
-cd raylane-express
+# Method 1: CLI (fastest)
 npm install
-vercel
+npx vercel --prod
+
+# Method 2: GitHub import
+# Push to GitHub → vercel.com → New Project → Import → Deploy
+
+# Method 3: Local build
+npm run build   # creates /dist
+# Drag /dist to vercel.com
 ```
-
-### Option 2: GitHub + Vercel Dashboard
-1. Push this folder to a GitHub repo
-2. Go to [vercel.com](https://vercel.com) → New Project
-3. Import your repo
-4. Vercel auto-detects Vite — click **Deploy**
-
-### Option 3: Drag & Drop
-1. Run `npm run build`
-2. Drag the `dist/` folder to [vercel.com/new](https://vercel.com/new)
 
 ## 🛠 Local Development
+
 ```bash
 npm install
-npm run dev
-# Open http://localhost:3000
+npm run dev     # http://localhost:3000
 ```
 
-## 📦 Build for Production
-```bash
-npm run build
-# Output in /dist
-```
+## 📁 Project Structure
 
-## 🏗 Project Structure
 ```
 src/
 ├── components/
-│   ├── layout/       # Navbar, Footer, MobileBottomNav
-│   ├── sections/     # All homepage sections
-│   └── ui/           # Toast, AIAssistant
+│   ├── layout/          Navbar, Footer, MobileBottomNav
+│   ├── sections/        All 10 homepage sections
+│   └── ui/
+│       ├── SharedComponents.jsx   ← SINGLE SOURCE OF TRUTH
+│       │   Btn, Input, Select, Toggle, Card, StatCard, Pill
+│       │   SectionHead, BarChart, ProgressBar, Modal, Banner
+│       │   EmptyState, SeatLegend, PaymentModule, PaymentSuccess
+│       │   BusSeat55, BusSeat65, BusSeat67, TaxiSeat14
+│       ├── AIAssistant.jsx
+│       └── ToastContainer.jsx
 ├── pages/
 │   ├── Home.jsx
-│   ├── BookingFlow.jsx
-│   ├── ParcelPage.jsx
-│   ├── PartnerPortal.jsx
-│   ├── admin/        # AdminDashboard
-│   └── operator/     # OperatorDashboard
-├── data/             # Mock data (replace with API)
-├── hooks/            # useToast
-└── styles/           # globals.css
+│   ├── BookingFlow.jsx      5-step: VehicleType→Search→Seats→Payment→Ticket
+│   ├── ParcelPage.jsx       Send/Track/History + PaymentModule
+│   ├── PartnerPortal.jsx    Apply/HowItWorks/Services/FAQ
+│   ├── admin/AdminDashboard.jsx
+│   └── operator/OperatorDashboard.jsx
+├── data/index.js         Mock data (replace with API calls)
+├── hooks/
+│   ├── useToast.js
+│   └── useMediaQuery.js
+└── styles/globals.css   Mobile-first design system
 ```
 
 ## 🎨 Design System
-- **Primary**: `#0B3D91` (Deep Blue)
-- **Accent**: `#FFC72C` (Gold)
-- **Fonts**: Montserrat (headings) + Inter (body)
-- **Mobile-first**: Bottom nav, responsive grid, touch-optimized
 
-## 💳 Payment Integration (Backend)
-Connect to MTN MoMo API and Airtel Money API:
-- MTN: `https://developer.mtn.com/products/mobile-money`
-- Airtel: `https://developers.airtel.africa`
+| Token | Value |
+|---|---|
+| Primary Blue | `#0B3D91` |
+| Gold Accent | `#FFC72C` |
+| Font (Headings) | Montserrat 700–900 |
+| Font (Body) | Inter 400–600 |
+| Mobile breakpoint | 768px |
+| Container max-width | 1200px |
 
-## 🔌 Backend Integration Points
-- Replace `src/data/index.js` with API calls
-- Add authentication (JWT recommended)
-- Connect Seat Sync Engine via WebSocket
-- Integrate SMS notifications (Africa's Talking)
+## 💳 Payment Integration Points
+
+Replace `PaymentModule` in `SharedComponents.jsx`:
+- **MTN MoMo**: `https://developer.mtn.com/products/mobile-money`
+- **Airtel Money**: `https://developers.airtel.africa`
+
+## 🏦 Premium Services (Admin-activated)
+
+| Service | Monthly Fee |
+|---|---|
+| Sacco Module | UGX 200,000 |
+| Bank Loan Monitor | UGX 150,000 |
+| Staff / HR Management | UGX 100,000 |
+| Fleet Maintenance | UGX 120,000 |
+| Fuel Management | UGX 80,000 |
+| Insurance Dashboard | UGX 80,000 |
+| Advanced Analytics | UGX 100,000 |
+| Supplier & Vendor Pay | UGX 60,000 |
+
+## 🔌 Backend Integration
+
+Replace mock data in `src/data/index.js` with API calls.
+Key endpoints to implement:
+- `GET /trips?from=&to=&date=` — search trips
+- `POST /bookings` — create booking
+- `POST /payments/initiate` — trigger MoMo payment
+- `GET /parcels/:id/track` — parcel tracking
+- `GET /operators/:id/dashboard` — operator stats
+- `POST /admin/payouts/:tripId/release` — manual payout
 
 ---
-Built with ❤️ for Uganda · Raylane Express Ltd, Kampala
+© 2026 Raylane Express Ltd · Kampala, Uganda 🇺🇬
