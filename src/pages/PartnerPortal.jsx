@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../hooks/useToast'
+import store from '../store/appStore'
 import { Card, Btn, Banner, StatCard, Pill } from '../components/ui/SharedComponents'
 import Footer from '../components/layout/Footer'
 
@@ -49,8 +50,14 @@ export default function PartnerPortal() {
   const handleSubmit = e => {
     e.preventDefault()
     if (!form.name || !form.phone || !form.company) { toast('Please fill required fields', 'warning'); return }
+    store.submitApplication({
+      contact_name: form.name, company_name: form.company, phone: form.phone,
+      email: form.email, fleet_size: parseInt(form.fleet)||0, current_routes: form.routes,
+      modules_requested: ['booking_basic','parcel_basic', ...form.interest.map(s=>s.toLowerCase().replace(/\//g,'_')+'_module')],
+      terms_accepted: true, signature_name: form.name, message: form.message
+    })
     setSubmitted(true)
-    toast('🎉 Application received! Our team will contact you within 24 hours.', 'success')
+    toast('🎉 Application submitted! Raylane Admin will review and contact you within 24 hours.', 'success')
   }
 
   return (

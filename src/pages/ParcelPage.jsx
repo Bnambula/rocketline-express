@@ -49,6 +49,8 @@ export default function ParcelPage() {
   const [bookingRef]            = useState(`PCL-${Date.now().toString().slice(-6)}-KLA-${Math.floor(Math.random()*90000+10000)}`)
   const [form, setForm]         = useState({ from:'Kampala', to:'Gulu', senderPhone:'', recipientPhone:'', recipientName:'', notes:'', insure:false, pickupRider:false })
   const [errors, setErrors]     = useState({})
+  const [insureModal, setInsureModal] = useState(false)
+  const [insureForm, setInsureForm]   = useState({ value:'', description:'', acceptTerms:false })
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -147,7 +149,7 @@ export default function ParcelPage() {
                   <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:13, marginBottom:12, color:'var(--gray-text)', textTransform:'uppercase', letterSpacing:1 }}>Optional Add-ons</div>
                   {[
                     { key:'pickupRider', icon:'🛵', label:'Pickup Rider', price:5000, desc:'We come collect from your location' },
-                    { key:'insure', icon:'🛡️', label:'Insurance (3%)', price:Math.round((selected?.price||0)*0.03), desc:'Full coverage for high-value items' },
+                    { key:'insure', icon:'🛡️', label:'Insurance (3% of declared value)', price:Math.round((parseFloat(insureForm.value)||selected?.price||0)*0.03), desc:insureForm.description?'✅ Covered: '+insureForm.description.slice(0,28):'Declare value & describe contents', specialClick:()=>setInsureModal(true) },
                   ].map(addon => (
                     <div key={addon.key} onClick={() => setForm(f => ({...f, [addon.key]:!f[addon.key]}))}
                       style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0', borderBottom:'1px solid var(--gray-mid)', cursor:'pointer' }}>
@@ -371,7 +373,70 @@ export default function ParcelPage() {
       </div>
       <Footer />
 
-      <style>{`
+
+      {/* Insurance Modal */}
+      {insureModal && (
+        <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',backdropFilter:'blur(4px)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center' }}
+          onClick={e=>{if(e.target===e.currentTarget)setInsureModal(false)}}>
+          <div style={{ background:'var(--white)',borderRadius:'20px 20px 0 0',width:'100%',maxWidth:540,padding:24,boxShadow:'0 -8px 40px rgba(0,0,0,0.2)',animation:'slideUp .3s ease',maxHeight:'90vh',overflowY:'auto' }}>
+            <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20 }}>
+              <h3 style={{ fontFamily:'var(--font-head)',fontWeight:800,fontSize:18,margin:0 }}>🛡️ Parcel Insurance</h3>
+              <button onClick={()=>setInsureModal(false)} style={{ width:32,height:32,borderRadius:8,background:'var(--gray-light)',border:'none',cursor:'pointer',fontSize:16 }}>✕</button>
+            </div>
+            <div style={{ background:'#eff6ff',borderRadius:12,padding:'12px 16px',marginBottom:18,fontSize:13,color:'#1d4ed8',fontFamily:'var(--font-head)',fontWeight:600,border:'1px solid #bfdbfe' }}>
+              ℹ️ Insurance costs 3% of your declared item value. Maximum payout equals the declared value.
+            </div>
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:'block',fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,marginBottom:5 }}>Declared Item Value (UGX) *</label>
+              <input type="number" placeholder="e.g. 500000" value={insureForm.value} onChange={e=>setInsureForm({...insureForm,value:e.target.value})} style={{ width:'100%',border:'1.5px solid #e2e8f0',borderRadius:10,padding:'11px 12px',fontSize:14,fontFamily:'var(--font-head)',fontWeight:600,boxSizing:'border-box' }}/>
+              {insureForm.value&&<div style={{ fontSize:12,color:'var(--blue)',fontFamily:'var(--font-head)',fontWeight:700,marginTop:4 }}>Insurance fee: UGX {Math.round(parseFloat(insureForm.value||0)*0.03).toLocaleString()}</div>}
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <label style={{ display:'block',fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,marginBottom:5 }}>Description of Contents *</label>
+              <textarea rows={3} placeholder="Describe exactly what is in the parcel (e.g. Samsung Galaxy A52 smartphone, black)…" value={insureForm.description} onChange={e=>setInsureForm({...insureForm,description:e.target.value})} style={{ width:'100%',border:'1.5px solid #e2e8f0',borderRadius:10,padding:'11px 12px',fontSize:14,fontFamily:'var(--font-body)',resize:'none',boxSizing:'border-box' }}/>
+            </div>
+            {/* What we don't insure */}
+            <div style={{ background:'#fff3cd',borderRadius:12,padding:14,marginBottom:16,border:'1px solid #f59e0b' }}>
+              <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:13,color:'#92400e',marginBottom:8 }}>❌ Items We Do NOT Transport or Insure</div>
+              {['Illegal substances or contraband','Live animals or perishable food without prior arrangement','Explosives, firearms, or dangerous chemicals','Cash, jewellery over UGX 5M, or raw gold','Counterfeit goods or unlicensed items','Human remains (requires special permit)'].map(item=>(
+                <div key={item} style={{ display:'flex',gap:8,marginBottom:5,fontSize:12,color:'#92400e',alignItems:'flex-start' }}>
+                  <span style={{ flexShrink:0,fontWeight:700 }}>✕</span>{item}
+                </div>
+              ))}
+            </div>
+            {/* Terms */}
+            <div style={{ background:'var(--gray-light)',borderRadius:12,padding:14,marginBottom:16 }}>
+              <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:13,marginBottom:8 }}>📋 Insurance Terms</div>
+              <ul style={{ paddingLeft:16,fontSize:12,color:'var(--gray-text)',lineHeight:1.8 }}>
+                <li>Insurance covers loss or damage during transit only</li>
+                <li>Claims must be reported within 24 hours of delivery</li>
+                <li>Payout equals declared value, subject to verification</li>
+                <li>Raylane is not liable for items not declared accurately</li>
+                <li>Photos of parcel contents may be required for claims</li>
+              </ul>
+            </div>
+            <label style={{ display:'flex',alignItems:'flex-start',gap:10,marginBottom:18,cursor:'pointer' }}>
+              <div onClick={()=>setInsureForm(f=>({...f,acceptTerms:!f.acceptTerms}))} style={{ width:20,height:20,borderRadius:5,border:`2px solid ${insureForm.acceptTerms?'var(--blue)':'var(--gray-mid)'}`,background:insureForm.acceptTerms?'var(--blue)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1,transition:'all .2s' }}>
+                {insureForm.acceptTerms&&<span style={{ color:'white',fontSize:11,fontWeight:900 }}>✓</span>}
+              </div>
+              <span style={{ fontSize:13,color:'var(--gray-text)',lineHeight:1.6 }}>I confirm the declared value is accurate and I have read and accept the insurance terms above.</span>
+            </label>
+            <div style={{ display:'grid',gridTemplateColumns:'1fr 2fr',gap:10 }}>
+              <button onClick={()=>setInsureModal(false)} style={{ padding:'12px',borderRadius:14,background:'var(--gray-light)',color:'var(--dark)',border:'none',fontFamily:'var(--font-head)',fontWeight:700,fontSize:14,cursor:'pointer' }}>Cancel</button>
+              <button onClick={()=>{
+                if(!insureForm.value||!insureForm.description){toast('Please fill all fields','warning');return}
+                if(!insureForm.acceptTerms){toast('Please accept the insurance terms','warning');return}
+                setForm(f=>({...f,insure:true}))
+                setInsureModal(false)
+                toast('🛡️ Insurance added to your parcel booking','success')
+              }} style={{ padding:'12px',borderRadius:14,background:'var(--blue)',color:'var(--white)',border:'none',fontFamily:'var(--font-head)',fontWeight:800,fontSize:15,cursor:'pointer' }}>
+                Add Insurance — UGX {Math.round(parseFloat(insureForm.value||0)*0.03).toLocaleString()}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+            <style>{`
         @media(max-width:767px){
           .parcel-grid { grid-template-columns:1fr !important; }
           .parcel-types { grid-template-columns:1fr 1fr !important; }

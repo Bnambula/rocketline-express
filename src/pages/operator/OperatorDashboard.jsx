@@ -1,584 +1,517 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useOperatorStore } from '../../hooks/useStore'
 import { useToast } from '../../hooks/useToast'
+import { Card, StatCard, Pill, SectionHead, BarChart, ProgressBar, Banner, Modal, Btn, Input, Select, EmptyState } from '../../components/ui/SharedComponents'
+import { BusSeat55, BusSeat65, BusSeat67, TaxiSeat14, SeatLegend } from '../../components/ui/SeatMaps'
 
-/* ── NAV ITEMS ── */
-const NAV = [
-  { icon:'📊', label:'Dashboard',    id:'dashboard' },
-  { icon:'➕', label:'Add Trip',     id:'addtrip' },
-  { icon:'🚌', label:'My Trips',     id:'trips' },
-  { icon:'🎫', label:'Bookings',     id:'bookings' },
-  { icon:'📦', label:'Parcels',      id:'parcels' },
-  { icon:'💳', label:'Payments',     id:'payments' },
-  { icon:'👥', label:'Staff/HR',     id:'hr' },
-  { icon:'📍', label:'Map Pin',      id:'mappins' },
-  { icon:'🔔', label:'Alerts',       id:'alerts', badge:3 },
-  { icon:'💰', label:'Sacco',        id:'sacco', locked:true },
-  { icon:'📈', label:'Reports',      id:'reports' },
-  { icon:'⚙️', label:'Settings',     id:'settings' },
-]
+// Active operator — in production, from auth context
+const ACTIVE_OP_ID = 'op-001'
 
-/* ── MOCK DATA ── */
-const TRIPS = [
-  { id:'T001', route:'Kampala → Mbale', vehicle:'UBF 234K', type:'55-Seater Coach', departs:'10:00 AM', date:'2026-05-12', seats:55, booked:36, price:25000, status:'approved', revenue:900000 },
-  { id:'T002', route:'Mbale → Kampala', vehicle:'UBF 234K', type:'55-Seater Coach', departs:'4:00 PM',  date:'2026-05-12', seats:55, booked:12, price:25000, status:'approved', revenue:300000 },
-  { id:'T003', route:'Kampala → Gulu',  vehicle:'UAR 512B', type:'67-Seater Coach', departs:'7:00 AM',  date:'2026-05-13', seats:67, booked:0,  price:35000, status:'pending',  revenue:0 },
-]
+const SEAT_TYPES = ['55','65','67','14']
+const CITIES = ['Kampala','Mbale','Gulu','Arua','Mbarara','Nairobi','Kigali','Juba','Fort Portal','Jinja','Masaka','Kabale','Entebbe']
+const VEHICLES_MOCK = ['UBF 234K – 55-Seater','UAR 512B – 67-Seater','UAK 890C – 65-Seater','UBJ 110X – 14-Seater Taxi']
 
-const BOOKINGS = [
-  { id:'RLX-001', seat:'5',  phone:'0771-xxx-xxx', amount:25000, method:'MTN MoMo',    status:'confirmed', trip:'Kampala→Mbale', time:'10:00 AM' },
-  { id:'RLX-002', seat:'12', phone:'0700-xxx-xxx', amount:25000, method:'Airtel Money', status:'confirmed', trip:'Kampala→Mbale', time:'10:00 AM' },
-  { id:'RLX-003', seat:'23', phone:'0752-xxx-xxx', amount:25000, method:'MTN MoMo',    status:'pending',   trip:'Kampala→Mbale', time:'10:00 AM' },
-  { id:'RLX-004', seat:'31', phone:'0781-xxx-xxx', amount:25000, method:'Airtel Money', status:'confirmed', trip:'Kampala→Mbale', time:'10:00 AM' },
-  { id:'RLX-005', seat:'44', phone:'0703-xxx-xxx', amount:25000, method:'MTN MoMo',    status:'confirmed', trip:'Kampala→Mbale', time:'10:00 AM' },
-]
-
-const PARCELS_DATA = [
-  { id:'PCL-001', type:'Small Parcel', from:'Kampala', to:'Mbale', sender:'0771-xxx', recipient:'0752-xxx', amount:12000, status:'in-transit', scan:'On Board UBF 234K' },
-  { id:'PCL-002', type:'Envelope',     from:'Kampala', to:'Gulu',  sender:'0700-xxx', recipient:'0703-xxx', amount:5000,  status:'pending',    scan:'Pickup scheduled' },
-]
-
-const STAFF = [
-  { name:'James Okello',   role:'Dispatcher',    phone:'0771-111-222', status:'active',   salary:800000 },
-  { name:'Sarah Nakato',   role:'Loading Clerk', phone:'0700-333-444', status:'active',   salary:600000 },
-  { name:'Peter Mwesiga',  role:'Accountant',    phone:'0752-555-666', status:'on-leave', salary:1000000 },
-]
-
-const SACCO_DATA = {
-  totalMembers:120, totalSavings:45600000, outstandingLoans:12800000,
-  members:[
-    { name:'John Doe',     loan:1000000, savings:500000,  status:'pending',  repaid:0 },
-    { name:'Jane Smith',   loan:500000,  savings:800000,  status:'approved', repaid:150000 },
-    { name:'Peter Okello', loan:2000000, savings:1200000, status:'repaid',   repaid:2000000 },
-  ],
-  chart:[18,22,30,28,35,45],
+const MODULE_LABELS = {
+  booking_basic:'Booking',parcel_basic:'Parcels',financial_module:'Financials',
+  fuel_module:'Fuel',loan_tracking:'Bank Loans',sacco_module:'Sacco',
+  analytics_module:'Analytics',hr_module:'Staff/HR',fleet_module:'Fleet'
 }
+const MODULE_ICONS = {
+  booking_basic:'🎫',parcel_basic:'📦',financial_module:'💰',fuel_module:'⛽',
+  loan_tracking:'🏦',sacco_module:'🏛️',analytics_module:'📊',hr_module:'👥',fleet_module:'🔧'
+}
+const MODULE_PRICES = { financial_module:100000,fuel_module:80000,loan_tracking:150000,sacco_module:200000,analytics_module:100000,hr_module:100000,fleet_module:120000 }
+const fmt = n => 'UGX ' + Number(n).toLocaleString()
 
-const ALERTS = [
-  { icon:'🎫', type:'booking', msg:'New booking – Seat 47, UGX 25,000',    time:'2 min ago',  trip:'T001' },
-  { icon:'⚠️', type:'warning', msg:'Bus almost full – 3 seats remaining',   time:'14 min ago', trip:'T001' },
-  { icon:'📦', type:'parcel',  msg:'New parcel request – Kampala→Gulu',    time:'1 hr ago',   trip:null },
-  { icon:'✅', type:'success', msg:'Trip T003 pending admin approval',       time:'2 hrs ago',  trip:'T003' },
-  { icon:'💳', type:'payment', msg:'Payment confirmed – Seats 5, 12, 31',   time:'3 hrs ago',  trip:'T001' },
-]
-
-const VEHICLES = ['UBF 234K – 55-Seater Coach','UAR 512B – 67-Seater Coach','UAK 890C – 65-Seater Coach','UBJ 110X – 14-Seater Taxi']
-
-/* ── HELPERS ── */
-const fmt = n => 'UGX ' + n.toLocaleString()
-const Pill = ({ color, bg, text }) => (
-  <span style={{ background:bg||color+'18', color, padding:'3px 9px', borderRadius:20, fontFamily:'var(--font-head)', fontWeight:700, fontSize:10, whiteSpace:'nowrap' }}>{text}</span>
-)
-const Card = ({ children, style }) => (
-  <div style={{ background:'var(--white)', borderRadius:16, padding:20, boxShadow:'var(--shadow-sm)', ...style }}>{children}</div>
-)
-const SectionHead = ({ title, action, onAction }) => (
-  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, gap:10, flexWrap:'wrap' }}>
-    <h3 style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:15, margin:0 }}>{title}</h3>
-    {action && <button onClick={onAction} style={{ padding:'7px 14px', borderRadius:20, background:'var(--blue)', color:'var(--white)', border:'none', fontFamily:'var(--font-head)', fontWeight:700, fontSize:12, cursor:'pointer' }}>{action}</button>}
-  </div>
-)
-
-/* ══════════════════════════════════
-   MAIN COMPONENT
-══════════════════════════════════ */
 export default function OperatorDashboard() {
-  const [active, setActive] = useState('dashboard')
-  const [collapsed, setCollapsed] = useState(false)
-  const [trips, setTrips] = useState(TRIPS)
-  const [alerts, setAlerts] = useState(ALERTS)
-  const [tripForm, setTripForm] = useState({ route_from:'Kampala', route_to:'', vehicle:'', departs:'', date:'', price:'', seats:'', notes:'' })
+  const { state, store, op, trips, bookings, notifications, unreadCount } = useOperatorStore(ACTIVE_OP_ID)
+  const [active, setActive]     = useState('dashboard')
+  const [tripForm, setTripForm] = useState({ from:'Kampala', to:'', vehicle:'', seat_type:'55', date:'', departs:'', price:'', notes:'', boarding_label:'', boarding_lat:'', boarding_lng:'' })
+  const [tripErrors, setTripErrors] = useState({})
+  const [reqModal, setReqModal] = useState(null)
+  const [selectedSeatTrip, setSelectedSeatTrip] = useState(null)
+  const [selectedSeats, setSelectedSeats] = useState([])
   const toast = useToast()
   const navigate = useNavigate()
 
-  // Simulate incoming notification
-  useEffect(() => {
-    const t = setTimeout(() => { toast('🎫 New booking — Seat 47 confirmed (UGX 25,000)', 'success') }, 10000)
-    return () => clearTimeout(t)
-  }, [])
+  if (!op) return <div style={{ padding:40, textAlign:'center' }}>Loading operator…</div>
 
-  const submitTrip = e => {
-    e.preventDefault()
-    if (!tripForm.route_to || !tripForm.vehicle || !tripForm.departs || !tripForm.price) { toast('Please fill all required fields', 'warning'); return }
-    const newTrip = { id:`T00${trips.length+1}`, route:`${tripForm.route_from} → ${tripForm.route_to}`, vehicle:tripForm.vehicle.split('–')[0].trim(), type:tripForm.vehicle.split('–')[1]?.trim()||'Coach', departs:tripForm.departs, date:tripForm.date||'TBD', seats:parseInt(tripForm.seats)||55, booked:0, price:parseInt(tripForm.price.replace(/,/g,'')), status:'pending', revenue:0 }
-    setTrips(t => [newTrip, ...t])
-    toast('✅ Trip submitted! Awaiting Raylane Admin approval.', 'success')
-    setActive('trips')
-    setTripForm({ route_from:'Kampala', route_to:'', vehicle:'', departs:'', date:'', price:'', seats:'', notes:'' })
+  const activeModules = Object.entries(op.modules||{}).filter(([,v])=>v.status==='ACTIVE').map(([k])=>k)
+  const inactiveModules = Object.entries(op.modules||{}).filter(([,v])=>v.status==='INACTIVE').map(([k])=>k)
+
+  const isActive = (mod) => op.modules[mod]?.status==='ACTIVE'
+
+  const validateTrip = () => {
+    const e={}
+    if(!tripForm.to)       e.to='Destination required'
+    if(!tripForm.vehicle)  e.vehicle='Select a vehicle'
+    if(!tripForm.date)     e.date='Date required'
+    if(!tripForm.departs)  e.departs='Departure time required'
+    if(!tripForm.price||isNaN(tripForm.price)) e.price='Valid price required'
+    setTripErrors(e)
+    return Object.keys(e).length===0
   }
 
+  const submitTrip = () => {
+    if(!validateTrip()) { toast('Please fill all required fields','warning'); return }
+    const seat_label = tripForm.vehicle.split('–')[1]?.trim()||''
+    const seat_type = seat_label.includes('67')?'67':seat_label.includes('65')?'65':seat_label.includes('55')?'55':'14'
+    store.createTrip({
+      operator_id:op.id, operator_name:op.company_name,
+      plate:tripForm.vehicle.split('–')[0].trim(),
+      from:tripForm.from, to:tripForm.to,
+      date:tripForm.date, departs:tripForm.departs,
+      seat_type, price:parseInt(tripForm.price),
+      seats_total:parseInt(seat_type)||55, seats_booked:0,
+      boarding_pin:{ lat:parseFloat(tripForm.boarding_lat)||op.boarding_pin?.lat||0, lng:parseFloat(tripForm.boarding_lng)||op.boarding_pin?.lng||0, label:tripForm.boarding_label||op.boarding_pin?.label||'' },
+      notes:tripForm.notes
+    })
+    toast('✅ Trip submitted for Raylane Admin approval. You\'ll be notified when it goes live.','success')
+    setActive('trips')
+    setTripForm({ from:'Kampala', to:'', vehicle:'', seat_type:'55', date:'', departs:'', price:'', notes:'', boarding_label:'', boarding_lat:'', boarding_lng:'' })
+  }
+
+  const SeatComp = selectedSeatTrip ? { '55':BusSeat55,'65':BusSeat65,'67':BusSeat67,'14':TaxiSeat14 }[selectedSeatTrip.seat_type]||BusSeat55 : null
+
+  /* ── SIDEBAR ── */
+  const NAV_ITEMS = [
+    { id:'dashboard', icon:'📊', label:'Dashboard' },
+    { id:'addtrip',   icon:'➕', label:'Add Trip' },
+    { id:'trips',     icon:'🚌', label:'My Trips' },
+    { id:'seats',     icon:'💺', label:'Seat Manager' },
+    { id:'bookings',  icon:'🎫', label:'Bookings' },
+    { id:'parcels',   icon:'📦', label:'Parcels', mod:'parcel_basic' },
+    { id:'payments',  icon:'💳', label:'Payments' },
+    { id:'alerts',    icon:'🔔', label:'Alerts', badge:true },
+    // Premium modules
+    { id:'financial', icon:'💰', label:'Financials', mod:'financial_module', premium:true },
+    { id:'fuel',      icon:'⛽', label:'Fuel',        mod:'fuel_module',      premium:true },
+    { id:'loans',     icon:'🏦', label:'Bank Loans',  mod:'loan_tracking',    premium:true },
+    { id:'sacco',     icon:'🏛️', label:'Sacco',       mod:'sacco_module',     premium:true, sacco:true },
+    { id:'analytics', icon:'📊', label:'Analytics',   mod:'analytics_module', premium:true },
+    { id:'hr',        icon:'👥', label:'Staff/HR',     mod:'hr_module',        premium:true },
+    { id:'fleet',     icon:'🔧', label:'Fleet',        mod:'fleet_module',     premium:true },
+    { id:'mappins',   icon:'📍', label:'Map Pin' },
+    { id:'reports',   icon:'📈', label:'Reports' },
+    { id:'settings',  icon:'⚙️', label:'Settings' },
+  ]
+
   const Sidebar = () => (
-    <div className="dash-sidebar" style={{ width:collapsed?60:180, background:'var(--blue)', flexShrink:0, display:'flex', flexDirection:'column', transition:'width .28s', overflowX:'hidden', overflowY:'auto' }}>
-      <div style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,0.1)', display:'flex', alignItems:'center', justifyContent:'space-between', minHeight:52 }}>
-        {!collapsed && <div style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:11, color:'var(--gold)', whiteSpace:'nowrap', overflow:'hidden' }}>Global Coaches</div>}
-        <button onClick={() => setCollapsed(!collapsed)} style={{ color:'rgba(255,255,255,0.7)', flexShrink:0, padding:2 }}>
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-        </button>
+    <div className="dash-sidebar" style={{ width:192, background:'var(--blue)', flexShrink:0, display:'flex', flexDirection:'column', overflowY:'auto' }}>
+      <div style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,0.12)', minHeight:52 }}>
+        <div style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:12, color:'var(--gold)', marginBottom:2 }}>{op.company_name}</div>
+        <div style={{ fontSize:10, color:'rgba(255,255,255,0.6)' }}>{op.merchant_code}</div>
       </div>
       <nav style={{ flex:1, padding:'6px 0', display:'flex', flexDirection:'column' }}>
-        {NAV.map(item => (
-          <button key={item.id} onClick={() => { if(item.locked){toast('Sacco module requires a paid subscription. Contact Raylane to activate.','warning');return}; setActive(item.id) }} style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 14px', background:active===item.id?'rgba(255,199,44,0.14)':'none', color:active===item.id?'var(--gold)':'rgba(255,255,255,0.75)', borderLeft:active===item.id?'3px solid var(--gold)':'3px solid transparent', fontFamily:'var(--font-head)', fontWeight:600, fontSize:11, whiteSpace:'nowrap', transition:'all .18s', position:'relative', opacity:item.locked?.6:1 }}>
-            <span style={{ fontSize:14, flexShrink:0 }}>{item.icon}</span>
-            {!collapsed && <><span>{item.label}</span>{item.locked&&<span style={{ marginLeft:'auto', fontSize:9, opacity:.7 }}>🔒</span>}{item.badge&&<span style={{ marginLeft:'auto', background:'#ef4444', color:'white', borderRadius:10, padding:'1px 5px', fontSize:9 }}>{item.badge}</span>}</>}
-          </button>
-        ))}
+        {NAV_ITEMS.map(item=>{
+          if(item.mod && !isActive(item.mod)) {
+            return (
+              <button key={item.id} onClick={()=>setReqModal({mod:item.mod})}
+                style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 14px', background:'none', color:'rgba(255,255,255,0.35)', borderLeft:'3px solid transparent', fontFamily:'var(--font-head)', fontWeight:600, fontSize:11, whiteSpace:'nowrap', border:'none', cursor:'pointer', width:'100%', textAlign:'left' }}>
+                <span style={{ fontSize:13, flexShrink:0 }}>{item.icon}</span>
+                <span style={{ flex:1 }}>{item.label}</span>
+                <span style={{ fontSize:9, opacity:.7, flexShrink:0 }}>🔒</span>
+              </button>
+            )
+          }
+          const badge=item.badge?unreadCount:0
+          return (
+            <button key={item.id} onClick={()=>setActive(item.id)}
+              style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 14px', background:active===item.id?'rgba(255,199,44,0.14)':'none', color:active===item.id?'var(--gold)':'rgba(255,255,255,0.78)', borderLeft:`3px solid ${active===item.id?'var(--gold)':'transparent'}`, fontFamily:'var(--font-head)', fontWeight:600, fontSize:11, whiteSpace:'nowrap', transition:'all .18s', border:'none', cursor:'pointer', width:'100%', textAlign:'left' }}>
+              <span style={{ fontSize:13, flexShrink:0 }}>{item.icon}</span>
+              <span style={{ flex:1 }}>{item.label}</span>
+              {badge>0&&<span style={{ background:'#ef4444', color:'white', borderRadius:10, padding:'1px 5px', fontSize:9, fontWeight:700, flexShrink:0 }}>{badge}</span>}
+            </button>
+          )
+        })}
       </nav>
       <div style={{ padding:'10px 12px', borderTop:'1px solid rgba(255,255,255,0.1)' }}>
-        <button onClick={() => navigate('/')} style={{ width:'100%', padding:'8px', borderRadius:8, background:'rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.65)', fontFamily:'var(--font-head)', fontWeight:600, fontSize:10 }}>
-          {collapsed?'←':'← Back to Site'}
-        </button>
+        <button onClick={()=>navigate('/')} style={{ width:'100%', padding:'8px', borderRadius:8, background:'rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.6)', border:'none', cursor:'pointer', fontFamily:'var(--font-head)', fontWeight:600, fontSize:10 }}>← Back to Site</button>
       </div>
     </div>
   )
 
-  const inputS = { width:'100%', border:'1.5px solid var(--gray-mid)', borderRadius:10, padding:'11px 12px', fontSize:14, fontFamily:'var(--font-head)', fontWeight:500, boxSizing:'border-box', WebkitAppearance:'none' }
+  const inS = { width:'100%', border:'1.5px solid #e2e8f0', borderRadius:10, padding:'11px 12px', fontSize:14, fontFamily:'var(--font-head)', fontWeight:500, boxSizing:'border-box', WebkitAppearance:'none', outline:'none' }
 
   return (
     <div className="dash-wrap" style={{ display:'flex', height:'100vh', overflow:'hidden', background:'var(--gray-light)', paddingTop:'var(--nav-h)' }}>
       <Sidebar />
-
       <div className="dash-main" style={{ flex:1, overflowY:'auto', padding:20 }}>
-        {/* Header */}
-        <div className="dash-header" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, gap:12 }}>
-          <h1 style={{ fontFamily:'var(--font-head)', fontWeight:900, fontSize:'clamp(16px,2.5vw,20px)', margin:0 }}>
-            {NAV.find(n=>n.id===active)?.icon} {active==='dashboard'?'Operator Dashboard':NAV.find(n=>n.id===active)?.label}
+
+        {/* Top bar */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18, gap:12, flexWrap:'wrap' }}>
+          <h1 style={{ fontFamily:'var(--font-head)', fontWeight:900, fontSize:'clamp(15px,2vw,20px)', margin:0 }}>
+            {NAV_ITEMS.find(n=>n.id===active)?.icon||'📊'} {active==='dashboard'?'Operator Dashboard':NAV_ITEMS.find(n=>n.id===active)?.label||active}
           </h1>
-          <div style={{ display:'flex', gap:8, alignItems:'center', flexShrink:0 }}>
-            <button onClick={()=>{setActive('alerts')}} style={{ width:34,height:34,borderRadius:9,background:'var(--white)',boxShadow:'var(--shadow-sm)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,position:'relative' }}>
-              🔔<span style={{ position:'absolute',top:4,right:4,width:8,height:8,borderRadius:'50%',background:'#ef4444' }}/>
-            </button>
-            <div style={{ background:'var(--white)',borderRadius:10,padding:'6px 12px',display:'flex',alignItems:'center',gap:8,boxShadow:'var(--shadow-sm)' }}>
-              <div style={{ width:26,height:26,borderRadius:7,background:'var(--blue)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:900,fontSize:10,flexShrink:0 }}>GC</div>
-              <div className="hide-mobile">
-                <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:11 }}>Global Coaches</div>
-                <div style={{ fontSize:9,color:'var(--gray-text)' }}>Operator Account</div>
-              </div>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            {unreadCount>0&&<span style={{ background:'#fee2e2', color:'#dc2626', padding:'4px 12px', borderRadius:20, fontFamily:'var(--font-head)', fontWeight:700, fontSize:12 }}>🔔 {unreadCount}</span>}
+            <div style={{ background:'var(--white)', borderRadius:10, padding:'6px 12px', display:'flex', alignItems:'center', gap:8, boxShadow:'var(--shadow-sm)' }}>
+              <div style={{ width:26, height:26, borderRadius:7, background:'var(--blue)', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--white)', fontFamily:'var(--font-head)', fontWeight:900, fontSize:10, flexShrink:0 }}>{op.company_name[0]}</div>
+              <span className="hide-mobile" style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:12 }}>{op.company_name}</span>
             </div>
           </div>
         </div>
 
         {/* ── DASHBOARD ── */}
         {active==='dashboard' && (<>
-          <div className="stat-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
-            {[["Today's Revenue",'UGX 1.2M','💰','#dcfce7','#15803d','+8%'],['Bookings Today','48/122','🎫','#dbeafe','#1d4ed8','Live'],['Active Routes','2','🗺️','#fef9c3','#92400e','Running'],['Avg Rating','4.8 ★','⭐','#f3e8ff','#7c3aed','312 reviews']].map(([l,v,ic,bg,c,sub])=>(
-              <Card key={l}>
-                <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10 }}>
-                  <div style={{ width:36,height:36,borderRadius:9,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17 }}>{ic}</div>
-                  <Pill color={c} text={sub}/>
-                </div>
-                <div style={{ fontFamily:'var(--font-head)',fontWeight:900,fontSize:18,color:c }}>{v}</div>
-                <div style={{ fontSize:11,color:'var(--gray-text)',marginTop:2 }}>{l}</div>
-              </Card>
-            ))}
+          <div className="stat-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16 }}>
+            <StatCard icon="💰" label="Revenue Today"  value={fmt(bookings.filter(b=>b.status==='CONFIRMED').length*25000)} sub="+8%" bg="#dcfce7" color="#15803d"/>
+            <StatCard icon="🎫" label="Bookings Today" value={bookings.length}                                              sub="Live"  bg="#dbeafe" color="#1d4ed8"/>
+            <StatCard icon="🚌" label="Active Trips"   value={trips.filter(t=>t.status==='APPROVED').length}                sub="LIVE"  bg="#fef9c3" color="#92400e"/>
+            <StatCard icon="⭐" label="Rating"         value={op.rating+' ★'}                                              sub={op.reviews+' reviews'} bg="#f3e8ff" color="#7c3aed"/>
           </div>
-          <div className="two-col" style={{ display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:16,marginBottom:16 }}>
+
+          {/* Active modules bar */}
+          <div style={{ background:'var(--white)', borderRadius:14, padding:'12px 16px', marginBottom:14, boxShadow:'var(--shadow-sm)', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+            <span style={{ fontSize:12, color:'var(--gray-text)', fontFamily:'var(--font-head)', fontWeight:600, flexShrink:0 }}>Active modules:</span>
+            {activeModules.map(m=>(
+              <span key={m} style={{ background:'#dcfce7', color:'#15803d', padding:'3px 10px', borderRadius:10, fontSize:11, fontFamily:'var(--font-head)', fontWeight:700 }}>{MODULE_ICONS[m]} {MODULE_LABELS[m]}</span>
+            ))}
+            {inactiveModules.length>0&&<span style={{ fontSize:11, color:'var(--gray-text)', fontFamily:'var(--font-head)' }}>+{inactiveModules.length} available to unlock</span>}
+          </div>
+
+          <div className="two-col" style={{ display:'grid', gridTemplateColumns:'1.3fr 1fr', gap:14, marginBottom:14 }}>
             <Card>
               <SectionHead title="Today's Trips" action="+ Add Trip" onAction={()=>setActive('addtrip')}/>
-              {trips.filter(t=>t.status==='approved').map((t,i)=>(
-                <div key={t.id} style={{ display:'grid',gridTemplateColumns:'auto 1fr auto',gap:12,alignItems:'center',padding:'12px 0',borderBottom:i<1?'1px solid var(--gray-mid)':'' }}>
-                  <div style={{ width:40,height:40,borderRadius:10,background:'rgba(11,61,145,0.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0 }}>🚌</div>
-                  <div>
-                    <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>{t.route}</div>
-                    <div style={{ fontSize:11,color:'var(--gray-text)' }}>{t.vehicle} · {t.departs}</div>
-                    <div style={{ fontSize:11,color:'var(--gray-text)',marginTop:2 }}>🪑 {t.booked}/{t.seats} · {fmt(t.revenue)}</div>
+              {trips.filter(t=>t.status==='APPROVED').length===0
+                ? <EmptyState icon="🚌" title="No approved trips yet" desc="Submit a trip and wait for admin approval." action="Add Trip" onAction={()=>setActive('addtrip')}/>
+                : trips.filter(t=>t.status==='APPROVED').slice(0,2).map((t,i)=>(
+                  <div key={t.id} style={{ display:'grid', gridTemplateColumns:'auto 1fr auto', gap:12, alignItems:'center', padding:'12px 0', borderBottom:i===0?'1px solid var(--gray-mid)':'' }}>
+                    <div style={{ width:40,height:40,borderRadius:10,background:'rgba(11,61,145,0.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0 }}>🚌</div>
+                    <div>
+                      <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>{t.from} → {t.to}</div>
+                      <div style={{ fontSize:11,color:'var(--gray-text)' }}>{t.plate} · {t.departs} · 🪑 {t.seats_booked}/{t.seats_total}</div>
+                    </div>
+                    <Pill text="LIVE" color="#15803d"/>
                   </div>
-                  <Pill color='#15803d' text='ON TIME'/>
-                </div>
-              ))}
-              <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:14 }}>
-                {[['🪑 Seats','Manage'],['👥 Passengers','View'],['⚠️ Report','Flag issue']].map(([l,s])=>(
-                  <button key={l} onClick={()=>toast(`${s} — connect to backend`,'success')} style={{ padding:'9px 6px',borderRadius:10,background:'var(--blue)',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:700,fontSize:10,textAlign:'center',lineHeight:1.5 }}>
-                    {l}<br/><span style={{ opacity:.75,fontSize:9 }}>{s}</span>
-                  </button>
                 ))}
-              </div>
+              {trips.filter(t=>t.status==='PENDING_APPROVAL').length>0&&(
+                <div style={{ marginTop:10, background:'#fff3cd', borderRadius:10, padding:'8px 12px', fontSize:12, color:'#92400e', fontFamily:'var(--font-head)', fontWeight:600 }}>
+                  ⏳ {trips.filter(t=>t.status==='PENDING_APPROVAL').length} trip(s) awaiting admin approval
+                </div>
+              )}
             </Card>
             <Card>
               <SectionHead title="Recent Bookings" action="View All" onAction={()=>setActive('bookings')}/>
-              {BOOKINGS.slice(0,4).map((b,i)=>(
-                <div key={b.id} style={{ display:'flex',alignItems:'center',gap:9,padding:'9px 0',borderBottom:i<3?'1px solid var(--gray-mid)':'' }}>
-                  <div style={{ width:30,height:30,borderRadius:8,background:'var(--blue)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:800,fontSize:10,flexShrink:0 }}>S{b.seat}</div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{b.phone}</div>
-                    <div style={{ fontSize:10,color:'var(--gray-text)' }}>{b.method}</div>
+              {bookings.length===0
+                ? <EmptyState icon="🎫" title="No bookings yet"/>
+                : bookings.slice(0,4).map((b,i)=>(
+                  <div key={b.id} style={{ display:'flex',alignItems:'center',gap:9,padding:'9px 0',borderBottom:i<3?'1px solid var(--gray-mid)':'' }}>
+                    <div style={{ width:30,height:30,borderRadius:8,background:'var(--blue)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontFamily:'var(--font-head)',fontWeight:800,fontSize:10,flexShrink:0 }}>S{b.seat}</div>
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{b.phone} · {b.method}</div>
+                      <div style={{ fontSize:10,color:'var(--gray-text)' }}>{fmt(b.amount)}</div>
+                    </div>
+                    <Pill text={b.status} color={b.status==='CONFIRMED'?'#15803d':'#92400e'}/>
                   </div>
-                  <Pill color={b.status==='confirmed'?'#15803d':'#92400e'} text={b.status}/>
-                </div>
-              ))}
+                ))}
             </Card>
           </div>
-          {/* Revenue mini chart */}
+
           <Card>
-            <SectionHead title="Weekly Revenue Overview"/>
-            <div style={{ display:'flex',alignItems:'flex-end',gap:6,height:100,marginBottom:10 }}>
-              {[30,55,40,80,65,90,75].map((v,i)=>(
-                <div key={i} style={{ flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4 }}>
-                  <div style={{ width:'100%',background:i===5?'var(--gold)':'var(--blue)',borderRadius:'4px 4px 0 0',height:`${v}%`,transition:'height .4s',opacity:i===5?1:.75 }}/>
-                  <span style={{ fontSize:9,color:'var(--gray-text)' }}>{['M','T','W','T','F','S','S'][i]}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--gray-text)' }}>
-              <span>Week Total: <strong style={{ color:'var(--blue)' }}>UGX 8.4M</strong></span>
-              <span>Commission paid: <strong style={{ color:'#dc2626' }}>UGX 672K</strong></span>
-              <span>Net: <strong style={{ color:'#15803d' }}>UGX 7.73M</strong></span>
-            </div>
+            <SectionHead title="Revenue This Week"/>
+            <BarChart data={[30,55,40,80,65,90,75]} labels={['Mon','Tue','Wed','Thu','Fri','Sat','Sun']} height={80} highlightLast/>
           </Card>
         </>)}
 
         {/* ── ADD TRIP ── */}
         {active==='addtrip' && (
           <Card>
-            <div style={{ background:'#eff6ff',borderRadius:12,padding:'12px 16px',marginBottom:22,fontSize:13,color:'#1d4ed8',fontFamily:'var(--font-head)',fontWeight:600,border:'1px solid #bfdbfe',lineHeight:1.6 }}>
-              ℹ️ After submission, <strong>Raylane Admin</strong> will review, approve or edit your trip before it goes live. You'll receive a notification once approved.
+            <Banner type="info">After submitting, <strong>Raylane Admin</strong> reviews and approves your trip before it goes live. You'll get an instant notification when approved. Admin may edit the price or time if needed.</Banner>
+            <div className="two-col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+              <div>
+                <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>Origin City *</label>
+                <select value={tripForm.from} onChange={e=>setTripForm({...tripForm,from:e.target.value})} style={inS}>
+                  {CITIES.map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>Destination City *</label>
+                <select value={tripForm.to} onChange={e=>setTripForm({...tripForm,to:e.target.value})} style={{ ...inS, borderColor:tripErrors.to?'#dc2626':undefined }}>
+                  <option value="">-- Select destination --</option>
+                  {CITIES.filter(c=>c!==tripForm.from).map(c=><option key={c}>{c}</option>)}
+                </select>
+                {tripErrors.to&&<div style={{ color:'#dc2626',fontSize:11,marginTop:3 }}>{tripErrors.to}</div>}
+              </div>
+              <div>
+                <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>Vehicle (Reg No.) *</label>
+                <select value={tripForm.vehicle} onChange={e=>setTripForm({...tripForm,vehicle:e.target.value})} style={{ ...inS, borderColor:tripErrors.vehicle?'#dc2626':undefined }}>
+                  <option value="">-- Select vehicle --</option>
+                  {VEHICLES_MOCK.map(v=><option key={v}>{v}</option>)}
+                </select>
+                {tripErrors.vehicle&&<div style={{ color:'#dc2626',fontSize:11,marginTop:3 }}>{tripErrors.vehicle}</div>}
+              </div>
+              <div>
+                <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>Date *</label>
+                <input type="date" value={tripForm.date} onChange={e=>setTripForm({...tripForm,date:e.target.value})} min={new Date().toISOString().split('T')[0]} style={{ ...inS, borderColor:tripErrors.date?'#dc2626':undefined }}/>
+                {tripErrors.date&&<div style={{ color:'#dc2626',fontSize:11,marginTop:3 }}>{tripErrors.date}</div>}
+              </div>
+              <div>
+                <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>Departure Time *</label>
+                <input type="time" value={tripForm.departs} onChange={e=>setTripForm({...tripForm,departs:e.target.value})} style={{ ...inS, borderColor:tripErrors.departs?'#dc2626':undefined }}/>
+                {tripErrors.departs&&<div style={{ color:'#dc2626',fontSize:11,marginTop:3 }}>{tripErrors.departs}</div>}
+              </div>
+              <div>
+                <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>Ticket Price (UGX) *</label>
+                <input type="number" placeholder="e.g. 25000" value={tripForm.price} onChange={e=>setTripForm({...tripForm,price:e.target.value})} style={{ ...inS, borderColor:tripErrors.price?'#dc2626':undefined }}/>
+                {tripErrors.price&&<div style={{ color:'#dc2626',fontSize:11,marginTop:3 }}>{tripErrors.price}</div>}
+              </div>
             </div>
-            <form onSubmit={submitTrip}>
-              <div className="two-col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14 }}>
-                {[['Origin City *','route_from','text','e.g. Kampala'],['Destination City *','route_to','text','e.g. Mbale'],['Date of Trip *','date','date',''],['Departure Time *','departs','time','']].map(([l,k,t,ph])=>(
+
+            {/* Boarding location */}
+            <div style={{ background:'var(--gray-light)', borderRadius:14, padding:16, marginBottom:14 }}>
+              <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:13, marginBottom:10, color:'var(--gray-text)', textTransform:'uppercase', letterSpacing:1 }}>📍 Boarding Location</div>
+              <div className="two-col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+                {[['Label','boarding_label','Kampala Coach Park Gate 3','text'],['Latitude','boarding_lat','0.3476','number'],['Longitude','boarding_lng','32.5825','number']].map(([l,k,ph,t])=>(
                   <div key={k}>
-                    <label style={{ fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,display:'block',marginBottom:5 }}>{l}</label>
-                    <input type={t} placeholder={ph} value={tripForm[k]} onChange={e=>setTripForm({...tripForm,[k]:e.target.value})} style={inputS}/>
+                    <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>{l}</label>
+                    <input type={t} placeholder={ph} value={tripForm[k]} onChange={e=>setTripForm({...tripForm,[k]:e.target.value})} style={inS}/>
                   </div>
                 ))}
               </div>
-              <div style={{ marginBottom:14 }}>
-                <label style={{ fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,display:'block',marginBottom:5 }}>Vehicle *</label>
-                <select value={tripForm.vehicle} onChange={e=>setTripForm({...tripForm,vehicle:e.target.value})} style={inputS}>
-                  <option value="">-- Select your vehicle --</option>
-                  {VEHICLES.map(v=><option key={v}>{v}</option>)}
-                </select>
-              </div>
-              <div className="two-col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14 }}>
-                <div>
-                  <label style={{ fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,display:'block',marginBottom:5 }}>Ticket Price (UGX) *</label>
-                  <input type="number" placeholder="e.g. 25000" value={tripForm.price} onChange={e=>setTripForm({...tripForm,price:e.target.value})} style={inputS}/>
-                </div>
-                <div>
-                  <label style={{ fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,display:'block',marginBottom:5 }}>Total Seats</label>
-                  <input type="number" placeholder="e.g. 55" value={tripForm.seats} onChange={e=>setTripForm({...tripForm,seats:e.target.value})} style={inputS}/>
-                </div>
-              </div>
-              <div style={{ marginBottom:20 }}>
-                <label style={{ fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,display:'block',marginBottom:5 }}>Notes for Admin (optional)</label>
-                <textarea rows={3} placeholder="Special instructions, route stops, amenities…" value={tripForm.notes} onChange={e=>setTripForm({...tripForm,notes:e.target.value})} style={{ ...inputS, resize:'none' }}/>
-              </div>
-              <div style={{ display:'grid',gridTemplateColumns:'1fr 2fr',gap:12 }}>
-                <button type="button" onClick={()=>setActive('trips')} style={{ padding:'13px',borderRadius:14,background:'var(--gray-light)',color:'var(--dark)',fontFamily:'var(--font-head)',fontWeight:700,fontSize:14 }}>Cancel</button>
-                <button type="submit" style={{ padding:'13px',borderRadius:14,background:'var(--gold)',color:'var(--blue)',fontFamily:'var(--font-head)',fontWeight:800,fontSize:15 }}>
-                  🚀 Submit Trip for Approval
-                </button>
-              </div>
-            </form>
+              <div style={{ fontSize:11, color:'var(--gray-text)', marginTop:6 }}>Passengers will see a "Get Directions" button that opens Google Maps to this exact location.</div>
+            </div>
+
+            <div style={{ marginBottom:16 }}>
+              <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>Notes for Admin (optional)</label>
+              <textarea rows={2} placeholder="Amenities, stops, special instructions…" value={tripForm.notes} onChange={e=>setTripForm({...tripForm,notes:e.target.value})} style={{ ...inS, resize:'none', lineHeight:1.6 }}/>
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:10 }}>
+              <Btn variant="ghost" full onClick={()=>setActive('trips')}>Cancel</Btn>
+              <Btn variant="gold" full size="lg" onClick={submitTrip} icon="🚀">Submit for Admin Approval</Btn>
+            </div>
           </Card>
         )}
 
         {/* ── MY TRIPS ── */}
-        {active==='trips' && (
-          <div>
-            <div style={{ display:'flex',justifyContent:'flex-end',marginBottom:14 }}>
-              <button onClick={()=>setActive('addtrip')} style={{ padding:'10px 20px',borderRadius:20,background:'var(--blue)',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>+ Add New Trip</button>
-            </div>
-            {trips.map(t=>(
-              <Card key={t.id} style={{ marginBottom:12 }}>
-                <div style={{ display:'flex',alignItems:'flex-start',gap:14,flexWrap:'wrap' }}>
-                  <div style={{ flex:1,minWidth:200 }}>
-                    <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:6,flexWrap:'wrap' }}>
-                      <span style={{ fontFamily:'var(--font-head)',fontWeight:800,fontSize:16 }}>{t.route}</span>
-                      <Pill color={t.status==='approved'?'#15803d':t.status==='pending'?'#92400e':'#dc2626'} text={t.status==='approved'?'✅ Live':'⏳ Pending Approval'}/>
+        {active==='trips' && (<>
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
+            <Btn variant="blue" icon="➕" onClick={()=>setActive('addtrip')}>Add New Trip</Btn>
+          </div>
+          {trips.length===0
+            ? <EmptyState icon="🚌" title="No trips yet" desc="Submit your first trip for admin approval." action="Add Trip" onAction={()=>setActive('addtrip')}/>
+            : trips.map(t=>(
+              <Card key={t.id} style={{ marginBottom:12, borderLeft:`4px solid ${t.status==='APPROVED'?'#22c55e':t.status==='PENDING_APPROVAL'?'var(--gold)':'#ef4444'}` }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12, marginBottom:10 }}>
+                  <div>
+                    <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', marginBottom:4 }}>
+                      <span style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:16 }}>{t.from} → {t.to}</span>
+                      <Pill text={t.status.replace(/_/g,' ')} color={t.status==='APPROVED'?'#15803d':t.status==='PENDING_APPROVAL'?'#92400e':'#dc2626'}/>
                     </div>
-                    <div style={{ display:'flex',gap:16,flexWrap:'wrap',fontSize:13,color:'var(--gray-text)',marginBottom:8 }}>
-                      <span>🚌 {t.vehicle}</span><span>🕐 {t.departs}</span><span>📅 {t.date}</span>
-                    </div>
-                    <div style={{ display:'flex',gap:16,flexWrap:'wrap',fontSize:13 }}>
-                      <span>🪑 <strong>{t.booked}/{t.seats}</strong> booked</span>
-                      <span style={{ color:'#15803d',fontFamily:'var(--font-head)',fontWeight:700 }}>{fmt(t.revenue)}</span>
-                      <span style={{ color:'var(--gray-text)' }}>@ {fmt(t.price)}/seat</span>
-                    </div>
+                    <div style={{ fontSize:13, color:'var(--gray-text)' }}>{t.plate} · {t.departs} · {t.date} · {t.seat_type}-seater · {fmt(t.price)}/seat</div>
+                    {t.rejection_reason&&<div style={{ marginTop:6, background:'#fee2e2', borderRadius:8, padding:'6px 10px', fontSize:12, color:'#dc2626', fontFamily:'var(--font-head)', fontWeight:600 }}>❌ {t.rejection_reason}</div>}
+                    {t.admin_note&&<div style={{ marginTop:4, background:'#eff6ff', borderRadius:8, padding:'6px 10px', fontSize:12, color:'#1d4ed8' }}>Admin note: {t.admin_note}</div>}
                   </div>
-                  {t.status==='approved'&&(
-                    <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
-                      <button onClick={()=>toast('Opening seat manager…','success')} style={{ padding:'8px 14px',borderRadius:12,background:'var(--blue)',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:700,fontSize:12 }}>Manage Seats</button>
-                      <button onClick={()=>toast('Passenger list downloaded','success')} style={{ padding:'8px 14px',borderRadius:12,background:'var(--gray-light)',color:'var(--dark)',fontFamily:'var(--font-head)',fontWeight:700,fontSize:12 }}>Passengers</button>
-                    </div>
+                  {t.status==='APPROVED'&&(
+                    <Btn size="sm" variant="blue" onClick={()=>{setSelectedSeatTrip(t);setActive('seats')}}>Manage Seats</Btn>
                   )}
-                  {t.status==='pending'&&<Pill color='#92400e' text='Awaiting admin review'/>}
+                  {t.status==='REJECTED'&&(
+                    <Btn size="sm" variant="ghost" onClick={()=>{setTripForm({...tripForm,from:t.from,to:t.to,date:t.date,price:t.price.toString()});setActive('addtrip')}}>Edit & Resubmit</Btn>
+                  )}
                 </div>
-                {/* Capacity bar */}
-                <div style={{ marginTop:12 }}>
-                  <div style={{ height:6,background:'var(--gray-mid)',borderRadius:3,overflow:'hidden' }}>
-                    <div style={{ height:'100%',width:`${(t.booked/t.seats)*100}%`,background:t.booked/t.seats>.9?'#dc2626':t.booked/t.seats>.6?'var(--gold)':'var(--blue)',borderRadius:3,transition:'width .5s' }}/>
-                  </div>
-                  <div style={{ fontSize:10,color:'var(--gray-text)',marginTop:3 }}>{Math.round((t.booked/t.seats)*100)}% full · {t.seats-t.booked} seats available</div>
-                </div>
+                {t.status==='APPROVED'&&(
+                  <ProgressBar value={t.seats_booked} max={t.seats_total} label={`${t.seats_booked}/${t.seats_total} seats booked`} showPct/>
+                )}
               </Card>
             ))}
-          </div>
-        )}
+        </>)}
+
+        {/* ── SEAT MANAGER ── */}
+        {active==='seats' && (<>
+          {!selectedSeatTrip
+            ? (<>
+                <div style={{ fontFamily:'var(--font-head)', color:'var(--gray-text)', marginBottom:14 }}>Select a trip to manage seats:</div>
+                {trips.filter(t=>t.status==='APPROVED').map(t=>(
+                  <Card key={t.id} hover onClick={()=>setSelectedSeatTrip(t)} style={{ marginBottom:10, cursor:'pointer' }}>
+                    <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:15 }}>{t.from} → {t.to} · {t.departs}</div>
+                    <div style={{ fontSize:13, color:'var(--gray-text)', marginTop:4 }}>{t.plate} · {t.seats_booked}/{t.seats_total} booked</div>
+                  </Card>
+                ))}
+              </>)
+            : (<>
+                <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:16, flexWrap:'wrap' }}>
+                  <button onClick={()=>{setSelectedSeatTrip(null);setSelectedSeats([])}} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--blue)', fontFamily:'var(--font-head)', fontWeight:700, fontSize:13 }}>← Back</button>
+                  <h3 style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:16, margin:0 }}>{selectedSeatTrip.from}→{selectedSeatTrip.to} · {selectedSeatTrip.departs}</h3>
+                  <Pill text={`${selectedSeatTrip.seats_booked}/${selectedSeatTrip.seats_total} booked`} color="#1d4ed8"/>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:20, alignItems:'start' }}>
+                  <div style={{ background:'var(--gray-light)', borderRadius:16, padding:14, overflowX:'auto', WebkitOverflowScrolling:'touch' }}>
+                    <div style={{ marginBottom:12 }}><SeatLegend compact/></div>
+                    {React.createElement(
+                      {55:BusSeat55,65:BusSeat65,67:BusSeat67,14:TaxiSeat14}[selectedSeatTrip.seat_type]||BusSeat55,
+                      { booked:[3,7,8,11,14], locked:[], selected:selectedSeats, onToggle:(n)=>setSelectedSeats(p=>p.includes(n)?p.filter(x=>x!==n):[...p,n]) }
+                    )}
+                  </div>
+                  <div style={{ minWidth:220 }}>
+                    <Card style={{ marginBottom:12 }}>
+                      <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:13, marginBottom:8 }}>Selected: {selectedSeats.length}</div>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:10 }}>
+                        {selectedSeats.map(s=><span key={s} style={{ background:'var(--gold)', color:'var(--blue)', padding:'3px 9px', borderRadius:7, fontFamily:'var(--font-head)', fontWeight:800, fontSize:12 }}>{s}</span>)}
+                      </div>
+                      <Btn variant="blue" full size="sm" onClick={()=>toast('Seats marked as reserved','success')}>Mark Reserved</Btn>
+                      <div style={{ marginTop:8 }}><Btn variant="danger" full size="sm" onClick={()=>toast('Seats marked as available','warning')}>Mark Available</Btn></div>
+                    </Card>
+                    <Card>
+                      <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:12, marginBottom:8, color:'var(--gray-text)' }}>Capacity</div>
+                      <ProgressBar value={selectedSeatTrip.seats_booked} max={selectedSeatTrip.seats_total} showPct/>
+                      <div style={{ fontSize:11, color:'var(--gray-text)', marginTop:6 }}>{selectedSeatTrip.seats_total-selectedSeatTrip.seats_booked} seats remaining</div>
+                    </Card>
+                  </div>
+                </div>
+              </>)}
+        </>)}
 
         {/* ── BOOKINGS ── */}
         {active==='bookings' && (
           <Card>
-            <SectionHead title="All Bookings"/>
-            <div style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%',borderCollapse:'collapse',minWidth:480 }}>
-                <thead><tr style={{ borderBottom:'2px solid var(--gray-mid)' }}>
-                  {['Booking ID','Seat','Trip','Method','Amount','Status'].map(h=>(
-                    <th key={h} style={{ padding:'8px 10px',fontFamily:'var(--font-head)',fontWeight:700,fontSize:11,color:'var(--gray-text)',textAlign:'left',whiteSpace:'nowrap' }}>{h}</th>
-                  ))}
-                </tr></thead>
-                <tbody>{BOOKINGS.map((b,i)=>(
-                  <tr key={b.id} style={{ borderBottom:'1px solid var(--gray-mid)' }}
-                    onMouseEnter={e=>e.currentTarget.style.background='var(--gray-light)'}
-                    onMouseLeave={e=>e.currentTarget.style.background=''}>
-                    <td style={{ padding:'11px 10px',fontFamily:'var(--font-head)',fontWeight:700,fontSize:12,color:'var(--blue)',whiteSpace:'nowrap' }}>{b.id}</td>
-                    <td style={{ padding:'11px 10px',fontSize:13 }}>Seat {b.seat}</td>
-                    <td style={{ padding:'11px 10px',fontSize:12,color:'var(--gray-text)',whiteSpace:'nowrap' }}>{b.trip}</td>
-                    <td style={{ padding:'11px 10px',fontSize:12 }}>{b.method}</td>
-                    <td style={{ padding:'11px 10px',fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>{fmt(b.amount)}</td>
-                    <td style={{ padding:'11px 10px' }}><Pill color={b.status==='confirmed'?'#15803d':'#92400e'} text={b.status}/></td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
+            <SectionHead title="All Bookings" count={bookings.length}/>
+            {bookings.length===0
+              ? <EmptyState icon="🎫" title="No bookings yet"/>
+              : <div style={{ overflowX:'auto' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', minWidth:480 }}>
+                    <thead><tr style={{ borderBottom:'2px solid var(--gray-mid)' }}>
+                      {['ID','Trip','Seat','Method','Amount','Status'].map(h=>(
+                        <th key={h} style={{ padding:'8px 10px', fontFamily:'var(--font-head)', fontWeight:700, fontSize:11, color:'var(--gray-text)', textAlign:'left', whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>{bookings.map((b,i)=>{
+                      const trip=state.trips.find(t=>t.id===b.trip_id)
+                      return (
+                        <tr key={b.id} style={{ borderBottom:'1px solid var(--gray-mid)' }}
+                          onMouseEnter={e=>e.currentTarget.style.background='var(--gray-light)'}
+                          onMouseLeave={e=>e.currentTarget.style.background=''}>
+                          <td style={{ padding:'10px', fontFamily:'var(--font-head)', fontWeight:700, fontSize:12, color:'var(--blue)' }}>{b.id}</td>
+                          <td style={{ padding:'10px', fontSize:12 }}>{trip?.from}→{trip?.to}</td>
+                          <td style={{ padding:'10px', fontSize:12 }}>Seat {b.seat}</td>
+                          <td style={{ padding:'10px', fontSize:12 }}>{b.method}</td>
+                          <td style={{ padding:'10px', fontFamily:'var(--font-head)', fontWeight:700, fontSize:13 }}>{fmt(b.amount)}</td>
+                          <td style={{ padding:'10px' }}><Pill text={b.status} color={b.status==='CONFIRMED'?'#15803d':'#92400e'}/></td>
+                        </tr>
+                      )
+                    })}</tbody>
+                  </table>
+                </div>}
           </Card>
         )}
 
-        {/* ── PARCELS ── */}
-        {active==='parcels' && (
-          <div>
-            <div style={{ display:'flex',justifyContent:'flex-end',marginBottom:14 }}>
-              <button onClick={()=>{ navigate('/parcels') }} style={{ padding:'10px 20px',borderRadius:20,background:'var(--blue)',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>+ New Parcel</button>
-            </div>
-            {PARCELS_DATA.map((p,i)=>(
-              <Card key={p.id} style={{ marginBottom:12 }}>
-                <div style={{ display:'flex',alignItems:'center',gap:14,flexWrap:'wrap' }}>
-                  <div style={{ fontSize:28,flexShrink:0 }}>📦</div>
-                  <div style={{ flex:1,minWidth:160 }}>
-                    <div style={{ fontFamily:'var(--font-head)',fontWeight:800,fontSize:14,marginBottom:4 }}>{p.type} — {p.from} → {p.to}</div>
-                    <div style={{ fontSize:12,color:'var(--gray-text)',marginBottom:4 }}>Sender: {p.sender} · Recipient: {p.recipient}</div>
-                    <div style={{ fontSize:12,color:'var(--gray-text)' }}>📍 {p.scan}</div>
+        {/* ── ALERTS / NOTIFICATIONS ── */}
+        {active==='alerts' && (
+          <Card>
+            <SectionHead title="🔔 Notifications" action="Mark all read" onAction={()=>{store.markOpRead(op.id);toast('All marked read','success')}}/>
+            {notifications.length===0
+              ? <EmptyState icon="🔔" title="All caught up!" desc="No notifications right now."/>
+              : notifications.map((n,i)=>(
+                <div key={n.id} style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'13px 0', borderBottom:i<notifications.length-1?'1px solid var(--gray-mid)':'', background:!n.read?'#eff6ff':'' }}>
+                  <span style={{ fontSize:18, flexShrink:0, marginTop:2 }}>{n.icon}</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:13 }}>{n.msg}</div>
+                    <div style={{ fontSize:11, color:'var(--gray-text)', marginTop:2 }}>{n.time}</div>
                   </div>
-                  <div style={{ textAlign:'right' }}>
-                    <div style={{ fontFamily:'var(--font-head)',fontWeight:800,fontSize:16,color:'var(--blue)' }}>{fmt(p.amount)}</div>
-                    <Pill color={p.status==='in-transit'?'#1d4ed8':'#92400e'} text={p.status}/>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {/* ── PAYMENTS ── */}
-        {active==='payments' && (
-          <div>
-            <div className="stat-grid" style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18 }}>
-              {[['Total Collected','UGX 1.2M','💰','#dcfce7','#15803d'],['Pending Payout','UGX 900K','⏳','#fef9c3','#92400e'],['Commission Paid','UGX 96K','💎','#dbeafe','#1d4ed8']].map(([l,v,ic,bg,c])=>(
-                <Card key={l}>
-                  <div style={{ width:36,height:36,borderRadius:9,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginBottom:10 }}>{ic}</div>
-                  <div style={{ fontFamily:'var(--font-head)',fontWeight:900,fontSize:18,color:c }}>{v}</div>
-                  <div style={{ fontSize:11,color:'var(--gray-text)',marginTop:2 }}>{l}</div>
-                </Card>
-              ))}
-            </div>
-            <Card>
-              <SectionHead title="Payment History"/>
-              {BOOKINGS.map((b,i)=>(
-                <div key={b.id} style={{ display:'flex',alignItems:'center',gap:12,padding:'11px 0',borderBottom:i<BOOKINGS.length-1?'1px solid var(--gray-mid)':'' }}>
-                  <div style={{ width:36,height:36,borderRadius:10,background:b.method.includes('MTN')?'#fffbeb':'#fff5f5',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0 }}>{b.method.includes('MTN')?'📱':'📲'}</div>
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>{b.id} — Seat {b.seat}</div>
-                    <div style={{ fontSize:11,color:'var(--gray-text)' }}>{b.method} · {b.trip}</div>
-                  </div>
-                  <div style={{ textAlign:'right',flexShrink:0 }}>
-                    <div style={{ fontFamily:'var(--font-head)',fontWeight:800,fontSize:13,color:'var(--blue)' }}>{fmt(b.amount)}</div>
-                    <Pill color={b.status==='confirmed'?'#15803d':'#92400e'} text={b.status}/>
-                  </div>
+                  {!n.read&&<span style={{ background:'#dbeafe', color:'#1d4ed8', padding:'2px 8px', borderRadius:10, fontSize:9, fontFamily:'var(--font-head)', fontWeight:700, flexShrink:0 }}>NEW</span>}
                 </div>
               ))}
-            </Card>
-          </div>
-        )}
-
-        {/* ── STAFF / HR ── */}
-        {active==='hr' && (
-          <div>
-            <div style={{ background:'#eff6ff',borderRadius:12,padding:'12px 16px',marginBottom:18,fontSize:13,color:'#1d4ed8',fontFamily:'var(--font-head)',fontWeight:600,border:'1px solid #bfdbfe' }}>
-              ℹ️ Staff management is a <strong>premium Raylane feature</strong>. User accounts and permissions are created by Raylane Admin only.
-            </div>
-            <div style={{ display:'flex',justifyContent:'flex-end',marginBottom:14 }}>
-              <button onClick={()=>toast('Contact Raylane to add staff accounts','warning')} style={{ padding:'10px 20px',borderRadius:20,background:'var(--blue)',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>+ Request Staff Account</button>
-            </div>
-            {STAFF.map((s,i)=>(
-              <Card key={i} style={{ marginBottom:12 }}>
-                <div style={{ display:'flex',alignItems:'center',gap:14,flexWrap:'wrap' }}>
-                  <div style={{ width:44,height:44,borderRadius:12,background:'var(--blue)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:900,fontSize:15,flexShrink:0 }}>{s.name[0]}</div>
-                  <div style={{ flex:1,minWidth:140 }}>
-                    <div style={{ fontFamily:'var(--font-head)',fontWeight:800,fontSize:15 }}>{s.name}</div>
-                    <div style={{ fontSize:12,color:'var(--gray-text)',marginTop:2 }}>{s.role} · {s.phone}</div>
-                  </div>
-                  <div style={{ textAlign:'right' }}>
-                    <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:14,color:'var(--blue)',marginBottom:4 }}>{fmt(s.salary)}/mo</div>
-                    <Pill color={s.status==='active'?'#15803d':'#92400e'} text={s.status}/>
-                  </div>
-                </div>
-              </Card>
-            ))}
-            <Card style={{ marginTop:14,background:'var(--gray-light)' }}>
-              <div style={{ fontFamily:'var(--font-head)',fontWeight:800,fontSize:14,marginBottom:12 }}>Role Permissions</div>
-              {[['Dispatcher','Trips, seat assignment, boarding management'],['Loading Clerk','Mark passengers boarded, seat updates only'],['Accountant','View payments, reports, and invoices']].map(([r,d])=>(
-                <div key={r} style={{ display:'flex',gap:10,marginBottom:10,alignItems:'flex-start' }}>
-                  <div style={{ width:8,height:8,borderRadius:'50%',background:'var(--blue)',marginTop:5,flexShrink:0 }}/>
-                  <div><strong style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>{r}:</strong> <span style={{ fontSize:13,color:'var(--gray-text)' }}>{d}</span></div>
-                </div>
-              ))}
-            </Card>
-          </div>
+          </Card>
         )}
 
         {/* ── MAP PIN ── */}
         {active==='mappins' && (
           <Card>
-            <SectionHead title="📍 Boarding Location Pin"/>
-            <p style={{ color:'var(--gray-text)',fontSize:14,marginBottom:20,lineHeight:1.7 }}>Set your exact pickup point. Passengers will see a "Get Directions" button on their digital ticket that opens Google Maps to this pin using their phone GPS.</p>
-            <div style={{ height:200,background:'linear-gradient(135deg,#e8f4fd,#dbeafe)',borderRadius:14,border:'2px solid #bfdbfe',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,position:'relative',overflow:'hidden' }}>
-              <div style={{ position:'absolute',inset:0,backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 22px,rgba(11,61,145,0.05) 22px,rgba(11,61,145,0.05) 23px),repeating-linear-gradient(90deg,transparent,transparent 22px,rgba(11,61,145,0.05) 22px,rgba(11,61,145,0.05) 23px)' }}/>
-              <div style={{ textAlign:'center',position:'relative',zIndex:1 }}>
-                <div style={{ fontSize:36,marginBottom:6 }}>📍</div>
-                <div style={{ fontFamily:'var(--font-head)',fontWeight:800,fontSize:14,color:'var(--blue)' }}>Kampala Coach Park</div>
-                <div style={{ fontSize:12,color:'var(--gray-text)',marginTop:4 }}>0.3476° N, 32.5825° E</div>
+            <SectionHead title="📍 Boarding Location"/>
+            <p style={{ color:'var(--gray-text)', fontSize:14, marginBottom:20, lineHeight:1.7 }}>Set your exact pickup location. Passengers tap "Get Directions" on their ticket and your pin opens in Google Maps with their GPS.</p>
+            <div style={{ height:180, background:'linear-gradient(135deg,#e8f4fd,#dbeafe)', borderRadius:14, border:'2px solid #bfdbfe', position:'relative', overflow:'hidden', marginBottom:20 }}>
+              <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 22px,rgba(11,61,145,0.05) 22px,rgba(11,61,145,0.05) 23px),repeating-linear-gradient(90deg,transparent,transparent 22px,rgba(11,61,145,0.05) 22px,rgba(11,61,145,0.05) 23px)' }}/>
+              <div style={{ position:'absolute', top:'38%', left:'50%', transform:'translate(-50%,-100%)', display:'flex', flexDirection:'column', alignItems:'center' }}>
+                <div style={{ width:32,height:32,borderRadius:'50% 50% 50% 0',background:'#ef4444',transform:'rotate(-45deg)',boxShadow:'0 4px 12px rgba(239,68,68,0.5)' }}/>
+                <div style={{ background:'white', borderRadius:8, padding:'4px 10px', marginTop:6, fontFamily:'var(--font-head)', fontWeight:700, fontSize:11, color:'var(--blue)', boxShadow:'var(--shadow-md)', whiteSpace:'nowrap' }}>{op.boarding_pin?.label||'Set pin location'}</div>
               </div>
             </div>
-            <div className="two-col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14 }}>
-              {[['Latitude','0.3476'],['Longitude','32.5825'],['Location Label','Kampala Coach Park']].slice(0,2).map(([l,v])=>(
-                <div key={l}>
-                  <label style={{ fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,display:'block',marginBottom:5 }}>{l}</label>
-                  <input defaultValue={v} style={{ width:'100%',border:'1.5px solid var(--gray-mid)',borderRadius:10,padding:'11px 12px',fontSize:14,fontFamily:'var(--font-head)',fontWeight:600,boxSizing:'border-box' }}/>
+            <div className="two-col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14 }}>
+              {[['Location Label','text','Kampala Coach Park, Gate 3'],['Latitude','number','0.3476'],['Longitude','number','32.5825']].map(([l,t,ph],i)=>(
+                <div key={l} style={{ gridColumn:i===0?'1/-1':undefined }}>
+                  <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>{l}</label>
+                  <input type={t} placeholder={ph} defaultValue={i===0?op.boarding_pin?.label:i===1?op.boarding_pin?.lat:op.boarding_pin?.lng} style={inS}/>
                 </div>
               ))}
             </div>
-            <div style={{ marginBottom:16 }}>
-              <label style={{ fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,display:'block',marginBottom:5 }}>Location Label</label>
-              <input defaultValue="Kampala Coach Park, Gate 3" style={{ width:'100%',border:'1.5px solid var(--gray-mid)',borderRadius:10,padding:'11px 12px',fontSize:14,fontFamily:'var(--font-head)',fontWeight:600,boxSizing:'border-box' }}/>
-            </div>
-            <button onClick={()=>toast('📍 Boarding location saved!','success')} style={{ width:'100%',padding:'13px',borderRadius:14,background:'var(--blue)',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:800,fontSize:15 }}>
-              📍 Save Boarding Location
-            </button>
+            <Btn variant="blue" full size="lg" onClick={()=>toast('📍 Boarding location saved!','success')}>Save Boarding Location</Btn>
           </Card>
         )}
 
-        {/* ── ALERTS ── */}
-        {active==='alerts' && (
-          <Card>
-            <SectionHead title="🔔 Real-Time Notifications" action="Mark all read" onAction={()=>toast('All marked read','success')}/>
-            {alerts.map((a,i)=>(
-              <div key={i} style={{ display:'flex',alignItems:'flex-start',gap:12,padding:'13px 0',borderBottom:i<alerts.length-1?'1px solid var(--gray-mid)':'',background:i===0?'#eff6ff':'',borderRadius:i===0?8:0,paddingLeft:i===0?8:0 }}>
-                <div style={{ width:38,height:38,borderRadius:10,background:'var(--gray-light)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0 }}>{a.icon}</div>
-                <div style={{ flex:1,minWidth:0 }}>
-                  <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>{a.msg}</div>
-                  <div style={{ fontSize:11,color:'var(--gray-text)',marginTop:2 }}>{a.time}</div>
-                </div>
-                {i===0&&<span style={{ background:'#dbeafe',color:'#1d4ed8',padding:'2px 8px',borderRadius:10,fontSize:9,fontFamily:'var(--font-head)',fontWeight:700,flexShrink:0 }}>NEW</span>}
-              </div>
-            ))}
-          </Card>
-        )}
-
-        {/* ── SACCO (locked) ── */}
+        {/* ── SACCO (locked message) ── */}
         {active==='sacco' && (
-          <div>
-            <Card style={{ marginBottom:16,background:'linear-gradient(135deg,var(--blue),var(--blue-dark))',color:'var(--white)' }}>
-              <div style={{ textAlign:'center',padding:'20px 0' }}>
-                <div style={{ fontSize:48,marginBottom:12 }}>🏦</div>
-                <h3 style={{ fontFamily:'var(--font-head)',fontWeight:900,fontSize:20,marginBottom:8 }}>Sacco Module</h3>
-                <div style={{ background:'rgba(255,199,44,0.2)',borderRadius:12,padding:'12px 16px',marginBottom:16,display:'inline-block' }}>
-                  <div style={{ fontFamily:'var(--font-head)',fontWeight:800,fontSize:14,color:'var(--gold)' }}>🔒 Premium Feature</div>
-                  <div style={{ fontSize:12,opacity:.85,marginTop:4 }}>Activate with a monthly subscription</div>
-                </div>
-                <p style={{ opacity:.85,fontSize:14,lineHeight:1.7,marginBottom:20 }}>
-                  The Raylane Sacco module lets you run a complete internal savings & credit cooperative for your staff and members. Raylane provides the platform — your Sacco manages its own funds.
-                </p>
-                <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20 }}>
-                  {[['👥 Member Registration','Onboard & manage members'],['💳 Loan Applications','Apply, approve, track'],['💰 Savings Tracking','Individual e-passbooks'],['📊 Repayment Monitor','Schedules & alerts']].map(([t,d])=>(
-                    <div key={t} style={{ background:'rgba(255,255,255,0.1)',borderRadius:12,padding:14,textAlign:'left' }}>
-                      <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:13,marginBottom:4 }}>{t}</div>
-                      <div style={{ fontSize:11,opacity:.8 }}>{d}</div>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={()=>toast('Contact Raylane Express to activate your Sacco module: +256 700 000 000','success')} style={{ padding:'14px 32px',borderRadius:20,background:'var(--gold)',color:'var(--blue)',fontFamily:'var(--font-head)',fontWeight:800,fontSize:15 }}>
-                  Contact Raylane to Activate
-                </button>
-              </div>
-            </Card>
-          </div>
+          <Card style={{ background:'linear-gradient(135deg,var(--blue),#082d6e)', color:'var(--white)', textAlign:'center', padding:40 }}>
+            <div style={{ fontSize:52, marginBottom:16 }}>🏛️</div>
+            <h2 style={{ fontFamily:'var(--font-head)', fontWeight:900, fontSize:22, marginBottom:10 }}>Sacco Module</h2>
+            <div style={{ background:'rgba(255,199,44,0.15)', borderRadius:14, padding:'14px 20px', marginBottom:20, display:'inline-block' }}>
+              <div style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:15, color:'var(--gold)' }}>🔒 Requires Subscription: UGX 200,000/month</div>
+            </div>
+            <p style={{ opacity:.85, fontSize:14, lineHeight:1.8, maxWidth:480, margin:'0 auto 24px' }}>
+              Run a full internal savings & loan cooperative for your staff. Raylane provides the platform — your Sacco manages its own funds entirely. Activated on request after payment.
+            </p>
+            <Btn variant="gold" size="lg" onClick={()=>{ store.requestModuleActivation(op.id,'sacco_module'); toast('Request sent to Raylane Admin. You\'ll be contacted shortly.','success') }}>Request Activation</Btn>
+            <div style={{ marginTop:12, fontSize:12, opacity:.7 }}>Raylane does NOT manage Sacco funds</div>
+          </Card>
         )}
 
-        {/* ── REPORTS ── */}
-        {active==='reports' && (
-          <div>
-            <div className="stat-grid" style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18 }}>
-              {[['This Month Revenue','UGX 8.4M','📈'],['Total Bookings','284','🎫'],['Avg Occupancy','74%','🪑']].map(([l,v,ic])=>(
-                <Card key={l} style={{ textAlign:'center' }}>
-                  <div style={{ fontSize:28,marginBottom:8 }}>{ic}</div>
-                  <div style={{ fontFamily:'var(--font-head)',fontWeight:900,fontSize:20,color:'var(--blue)' }}>{v}</div>
-                  <div style={{ fontSize:12,color:'var(--gray-text)',marginTop:4 }}>{l}</div>
-                </Card>
-              ))}
-            </div>
-            <Card>
-              <SectionHead title="Monthly Performance" action="Export CSV" onAction={()=>toast('Report exporting…','success')}/>
-              <div style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%',borderCollapse:'collapse',minWidth:400 }}>
-                  <thead><tr style={{ borderBottom:'2px solid var(--gray-mid)' }}>
-                    {['Month','Trips','Bookings','Revenue','Commission','Net'].map(h=>(
-                      <th key={h} style={{ padding:'8px 10px',fontFamily:'var(--font-head)',fontWeight:700,fontSize:11,color:'var(--gray-text)',textAlign:'left',whiteSpace:'nowrap' }}>{h}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {[['Apr 2026',8,284,'8,400,000','672,000','7,728,000'],['Mar 2026',7,241,'7,100,000','568,000','6,532,000'],['Feb 2026',6,198,'5,800,000','464,000','5,336,000']].map(([m,...rest],i)=>(
-                      <tr key={m} style={{ borderBottom:'1px solid var(--gray-mid)' }}>
-                        <td style={{ padding:'10px',fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>{m}</td>
-                        {rest.map((v,j)=><td key={j} style={{ padding:'10px',fontSize:13,color:j===4?'#15803d':j===3?'#dc2626':'var(--dark)',fontFamily:j>=2?'var(--font-head)':'' }}>{j>=2?'UGX ':''}{v}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          </div>
+        {/* ── GENERIC PREMIUM PLACEHOLDER ── */}
+        {['financial','fuel','loans','analytics','hr','fleet'].includes(active) && (
+          <Card style={{ textAlign:'center', padding:40 }}>
+            <div style={{ fontSize:52, marginBottom:14 }}>{NAV_ITEMS.find(n=>n.id===active)?.icon}</div>
+            <h3 style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:20, marginBottom:8 }}>{NAV_ITEMS.find(n=>n.id===active)?.label} Module</h3>
+            <p style={{ color:'var(--gray-text)', maxWidth:380, margin:'0 auto 20px', lineHeight:1.7, fontSize:14 }}>This premium module is active. Connect to the backend API to load live data.</p>
+            <Btn variant="blue" onClick={()=>toast('API connection required','success')}>Configure</Btn>
+          </Card>
         )}
 
         {/* ── SETTINGS ── */}
         {active==='settings' && (
-          <div className="two-col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:18 }}>
+          <div className="two-col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
             <Card>
               <SectionHead title="Company Profile"/>
-              {[['Company Name','Global Coaches Ltd'],['Registration No.','UG-2019-00123'],['MoMo Number','0771-234-567'],['Contact Email','info@globalcoaches.ug'],['Physical Address','Kampala Coach Park, Booth 14']].map(([l,v])=>(
-                <div key={l} style={{ marginBottom:14 }}>
-                  <label style={{ fontSize:10,fontWeight:700,color:'var(--gray-text)',fontFamily:'var(--font-head)',textTransform:'uppercase',letterSpacing:1.5,display:'block',marginBottom:5 }}>{l}</label>
-                  <input defaultValue={v} style={{ width:'100%',border:'1.5px solid var(--gray-mid)',borderRadius:10,padding:'10px 12px',fontSize:13,fontFamily:'var(--font-head)',fontWeight:600,boxSizing:'border-box' }}/>
+              {[['Company Name',op.company_name],['Merchant MoMo Code',op.merchant_code],['Contact Phone',op.phone],['Email',op.email],['Fleet Size',op.fleet_size+' vehicles']].map(([l,v])=>(
+                <div key={l} style={{ marginBottom:12 }}>
+                  <label style={{ display:'block', fontSize:10, fontWeight:700, color:'var(--gray-text)', fontFamily:'var(--font-head)', textTransform:'uppercase', letterSpacing:1.5, marginBottom:5 }}>{l}</label>
+                  <input defaultValue={v} style={inS}/>
                 </div>
               ))}
-              <button onClick={()=>toast('Profile saved','success')} style={{ width:'100%',padding:'12px',borderRadius:14,background:'var(--blue)',color:'var(--white)',fontFamily:'var(--font-head)',fontWeight:800,fontSize:14 }}>Save Profile</button>
+              <Btn variant="blue" full onClick={()=>toast('Profile saved','success')}>Save Profile</Btn>
             </Card>
             <Card>
-              <SectionHead title="Premium Features"/>
-              {[['Sacco Module','Savings & loans for your staff','🔒 Contact Raylane','#fef9c3','#92400e'],['HR Management','Full staff records & payroll','🔒 Contact Raylane','#fef9c3','#92400e'],['Advanced Analytics','Detailed route & revenue data','✅ Active','#dcfce7','#15803d'],['Priority Support','24/7 dedicated support line','✅ Active','#dcfce7','#15803d']].map(([t,d,s,bg,c])=>(
-                <div key={t} style={{ display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:'1px solid var(--gray-mid)' }}>
+              <SectionHead title="My Modules"/>
+              {Object.entries(op.modules||{}).map(([k,v])=>(
+                <div key={k} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 0', borderBottom:'1px solid var(--gray-mid)' }}>
+                  <span style={{ fontSize:16 }}>{MODULE_ICONS[k]}</span>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontFamily:'var(--font-head)',fontWeight:700,fontSize:13 }}>{t}</div>
-                    <div style={{ fontSize:11,color:'var(--gray-text)' }}>{d}</div>
+                    <div style={{ fontFamily:'var(--font-head)', fontWeight:700, fontSize:13 }}>{MODULE_LABELS[k]}</div>
+                    <div style={{ fontSize:11, color:'var(--gray-text)' }}>{MODULE_PRICES[k]?fmt(MODULE_PRICES[k])+'/mo':'Included free'}</div>
                   </div>
-                  <Pill color={c} text={s}/>
+                  <Pill text={v.status} color={v.status==='ACTIVE'?'#15803d':'#9ca3af'}/>
+                  {v.status==='INACTIVE'&&<button onClick={()=>setReqModal({mod:k})} style={{ padding:'4px 10px', borderRadius:10, background:'#dbeafe', color:'#1d4ed8', border:'none', fontFamily:'var(--font-head)', fontWeight:700, fontSize:10, cursor:'pointer' }}>Request</button>}
                 </div>
               ))}
-              <button onClick={()=>toast('Contact Raylane: +256 700 000 000','success')} style={{ width:'100%',marginTop:14,padding:'12px',borderRadius:14,background:'var(--gold)',color:'var(--blue)',fontFamily:'var(--font-head)',fontWeight:800,fontSize:14 }}>
-                Upgrade Features
-              </button>
             </Card>
           </div>
         )}
+
       </div>
+
+      {/* Module request modal */}
+      <Modal open={!!reqModal} onClose={()=>setReqModal(null)} title={`Request: ${MODULE_LABELS[reqModal?.mod]||reqModal?.mod}`}>
+        {reqModal&&(<>
+          <div style={{ background:'var(--gray-light)', borderRadius:12, padding:16, marginBottom:16 }}>
+            <div style={{ fontSize:28, marginBottom:8 }}>{MODULE_ICONS[reqModal.mod]||'💎'}</div>
+            <div style={{ fontFamily:'var(--font-head)', fontWeight:800, fontSize:16, marginBottom:4 }}>{MODULE_LABELS[reqModal.mod]}</div>
+            <div style={{ fontFamily:'var(--font-head)', fontWeight:900, fontSize:18, color:'var(--blue)' }}>{fmt(MODULE_PRICES[reqModal.mod]||0)}<span style={{ fontSize:12, color:'var(--gray-text)', fontWeight:400 }}>/month</span></div>
+          </div>
+          <Banner type="info">Raylane Admin will contact you to confirm payment and activate the module. Typical activation: within 24 hours of payment confirmation.</Banner>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <Btn variant="ghost" full onClick={()=>setReqModal(null)}>Cancel</Btn>
+            <Btn variant="gold" full onClick={()=>{ store.requestModuleActivation(op.id,reqModal.mod); toast('Request sent to Raylane Admin!','success'); setReqModal(null) }}>Send Request</Btn>
+          </div>
+        </>)}
+      </Modal>
     </div>
   )
 }

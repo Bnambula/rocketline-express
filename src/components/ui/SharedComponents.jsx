@@ -550,3 +550,6 @@ export function Banner({ type='info', children }) {
     </div>
   )
 }
+
+// Re-export seat maps from SeatMaps for backward compatibility
+export { BusSeat55, BusSeat65, BusSeat67, TaxiSeat14, SeatLegend } from './SeatMaps'
