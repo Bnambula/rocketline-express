@@ -24,8 +24,10 @@ export default function ServicesGrid() {
         </div>
         <div className="resp-grid">
           {SERVICES.map((s, i) => (
-            <div key={i} className="service-card" style={{ '--svc-color':s.color }
-              onClick={() => navigate(s.to)}>
+            <div key={i} className="service-card" style={{ cursor:'pointer' }}
+              onClick={() => navigate(s.to)}
+              onMouseEnter={e => { e.currentTarget.style.transform='translateY(-5px)'; e.currentTarget.style.boxShadow='var(--sh-lg)'; e.currentTarget.style.borderColor=s.color }}
+              onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=''; e.currentTarget.style.borderColor='var(--border)' }}>
               <div style={{ width:52, height:52, borderRadius:14, background:s.bg, color:s.color, display:'flex', alignItems:'center', justifyContent:'center' }}>{s.icon}</div>
               <div>
                 <h3 style={{ ...P, fontWeight:700, fontSize:17, marginBottom:6, color:'var(--text-primary)' }}>{s.title}</h3>

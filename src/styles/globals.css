@@ -205,7 +205,7 @@ input,select,textarea { font-family:var(--font-body); outline:none }
   cursor:pointer; transition:all .25s var(--ease);
   border:1.5px solid var(--border);
 }
-.service-card:hover { transform:translateY(-5px); box-shadow:var(--sh-lg); border-color:var(--svc-color,var(--blue)) }
+.service-card:hover { transform:translateY(-5px); box-shadow:var(--sh-lg); border-color:var(--blue) }
 
 /* ── SKELETON LOADING ── */
 .skeleton {
